@@ -1,26 +1,34 @@
 spring:
   application:
-    name: AiDemo
+    # 当前 Spring Boot 应用名称，后续日志、监控、链路追踪和服务注册都会使用该名称。
+    name: cold-chain-ai
 
-  ai:
+  profiles:
+    # 默认启用 local 环境，也可以通过 SPRING_PROFILES_ACTIVE 环境变量覆盖。
+    active: ${SPRING_PROFILES_ACTIVE:local}
 
-    # 指定当前项目使用 OpenAI 协议的 ChatModel。
-    model:
-      chat: openai
+  lifecycle:
+    # 应用关闭时最多等待 30 秒，让正在处理的请求和任务尽量执行完成。
+    timeout-per-shutdown-phase: 30s
 
-    openai:
-      # 使用环境变量保存模型地址，避免把不同环境的地址写死在代码中。
-      base-url: https://ws-cbifgwaicvmt6h8y.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+server:
+  # 默认使用 8080 端口，也可以通过 SERVER_PORT 环境变量覆盖。
+  port: ${SERVER_PORT:8080}
 
-      # API Key 必须通过环境变量或配置中心注入，不要提交到 Git 仓库。
-      api-key: ${OPENAI_API_KEY}
+  # 开启优雅停机，避免应用关闭时直接中断正在处理的 HTTP 请求。
+  shutdown: graceful
 
-      chat:
-        # 使用教程中的 qwen3-max，实际名称以模型服务平台提供的名称为准。
-        model: qwen3-max
 
-        # 股票查询属于事实型任务，温度不宜过高，减少回答随机性。
-        temperature: 0.5
+mybatis:
+  # 后续所有 MyBatis XML 文件统一放在 resources/mapper 的业务子目录中。
+  mapper-locations: classpath*:mapper/**/*.xml
 
-        # 关闭并行工具调用，让模型每轮只调用一个工具，降低Qwen流式Tool Call分片合并出错的概率。
-        #parallel-tool-calls: false
+  configuration:
+    # 将数据库下划线字段自动转换成 Java 驼峰属性，例如 order_no 映射为 orderNo。
+    map-underscore-to-camel-case: true
+
+    # SQL 执行日志通过 SLF4J 输出，避免直接使用 System.out 打印 SQL。
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+    # 单条 SQL 的默认超时时间为 30 秒，避免异常 SQL 无限等待。
+    default-statement-timeout: 5

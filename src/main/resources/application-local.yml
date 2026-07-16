@@ -1,0 +1,42 @@
+spring:
+  datasource:
+    # MySQL 8.x JDBC 驱动类。
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+    # 本地数据库连接地址，可以通过 MYSQL_URL 环境变量整体覆盖。
+    url: jdbc:mysql://localhost:3306/cold_chain_ai?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+
+    # 本地数据库用户名，默认使用 root，也可以通过环境变量覆盖。
+    username: root
+
+    # 数据库密码不写入 GitHub，必须通过 MYSQL_PASSWORD 环境变量提供。
+    password: 123456
+
+  ai:
+    # 明确指定当前项目使用 OpenAI 协议的 ChatModel 自动配置。
+    model:
+      chat: openai
+
+    # 控制模型请求失败后的重试行为。
+    retry:
+      # 本地开发阶段最多尝试两次，避免错误配置导致长时间重复等待。
+      max-attempts: 1
+
+    openai:
+      # OpenAI Compatible 服务地址，通过环境变量适配阿里云百炼或其他兼容平台。
+      base-url: https://ws-cbifgwaicvmt6h8y.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+
+      # API Key 禁止直接写入配置文件，未配置时使用占位值保证项目能够启动。
+      api-key: ${OPENAI_API_KEY}
+
+      chat:
+        # 实际模型名称通过环境变量提供，默认值只用于完成基础启动。
+        model: qwen3-max
+
+        # 较低温度让订单、支付和规则问答更加稳定，减少随机发挥。
+        temperature: 0.2
+
+logging:
+  level:
+    # 项目自身代码默认输出 INFO 级别日志。
+    com.ymm.coldchainai: INFO
