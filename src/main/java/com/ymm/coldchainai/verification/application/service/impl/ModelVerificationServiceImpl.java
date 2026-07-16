@@ -1,5 +1,6 @@
 package com.ymm.coldchainai.verification.application.service.impl;
 
+import com.ymm.coldchainai.shared.exception.BusinessException;
 import com.ymm.coldchainai.verification.application.service.IModelVerificationService;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
@@ -16,6 +17,11 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class ModelVerificationServiceImpl implements IModelVerificationService {
+
+    /**
+     * 模型问题为空时使用的业务失败编码。
+     */
+    private static final Integer QUESTION_IS_BLANK_CODE = 40001;
 
     /**
      * 用户问题为空时使用的异常信息。
@@ -41,7 +47,8 @@ public class ModelVerificationServiceImpl implements IModelVerificationService {
     @Override
     public String chat(String question) {
         if (StringUtils.isBlank(question)) {
-            throw new IllegalArgumentException(QUESTION_IS_BLANK_MESSAGE);
+            // 用户问题为空属于可预期业务失败，交由全局异常处理器转换成统一返回结构。
+            throw new BusinessException(QUESTION_IS_BLANK_CODE, QUESTION_IS_BLANK_MESSAGE);
         }
 
         /*

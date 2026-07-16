@@ -1,5 +1,6 @@
 package com.ymm.coldchainai.verification.interfaces.web;
 
+import com.ymm.coldchainai.shared.response.YmmResult;
 import com.ymm.coldchainai.verification.application.service.IModelVerificationService;
 import com.ymm.coldchainai.verification.interfaces.web.request.ModelChatRequest;
 import jakarta.validation.Valid;
@@ -35,8 +36,11 @@ public class ModelVerificationController {
      * @return 模型完整回答
      */
     @PostMapping("/chat")
-    public String chat(@Valid @RequestBody ModelChatRequest request) {
-        // Controller 只提取 HTTP 请求参数，具体模型调用由 Application Service 负责。
-        return modelVerificationService.chat(request.getQuestion());
+    public YmmResult<String> chat(@Valid @RequestBody ModelChatRequest request) {
+        // Controller 只调用 Application Service 获取结果，不直接操作 ChatClient。
+        String answer = modelVerificationService.chat(request.getQuestion());
+
+        // 将模型答案封装成统一返回对象，保证所有接口使用相同 JSON 结构。
+        return YmmResult.success(answer);
     }
 }
