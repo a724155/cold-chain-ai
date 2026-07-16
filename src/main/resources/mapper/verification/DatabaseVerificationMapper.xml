@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!--
+    数据库连通性验证 Mapper XML。
+
+    namespace 必须与对应 Mapper 接口的完整类名完全一致，
+    MyBatis 通过 namespace 和 select 的 id 定位 Java 方法对应的 SQL。
+-->
+<mapper namespace="com.ymm.coldchainai.verification.infrastructure.persistence.mapper.IDatabaseVerificationMapper">
+
+    <!--
+        执行最小数据库查询。
+
+        SELECT 1 不依赖任何业务表，
+        只要数据库连接正常并且当前账号能够执行普通查询，就会返回整数 1。
+    -->
+    <select id="selectDatabaseConnectionValue" resultType="java.lang.Integer">
+        SELECT 1
+    </select>
+
+</mapper>

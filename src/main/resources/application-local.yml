@@ -40,3 +40,6 @@ logging:
   level:
     # 项目自身代码默认输出 INFO 级别日志。
     com.ymm.coldchainai: INFO
+
+    # 数据库验证 Mapper 使用 DEBUG，便于本地查看真实执行的 SQL。
+    com.ymm.coldchainai.verification.infrastructure.persistence.mapper: DEBUG
