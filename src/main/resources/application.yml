@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: AiDemo
+
+  ai:
+
+    # 指定当前项目使用 OpenAI 协议的 ChatModel。
+    model:
+      chat: openai
+
+    openai:
+      # 使用环境变量保存模型地址，避免把不同环境的地址写死在代码中。
+      base-url: https://ws-cbifgwaicvmt6h8y.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+
+      # API Key 必须通过环境变量或配置中心注入，不要提交到 Git 仓库。
+      api-key: ${OPENAI_API_KEY}
+
+      chat:
+        # 使用教程中的 qwen3-max，实际名称以模型服务平台提供的名称为准。
+        model: qwen3-max
+
+        # 股票查询属于事实型任务，温度不宜过高，减少回答随机性。
+        temperature: 0.5
+
+        # 关闭并行工具调用，让模型每轮只调用一个工具，降低Qwen流式Tool Call分片合并出错的概率。
+        #parallel-tool-calls: false

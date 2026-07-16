@@ -28,7 +28,22 @@
     </scm>
     <properties>
         <java.version>21</java.version>
+        <!--
+            保留 Java 方法参数名称到编译后的字节码中。
+            后续 Spring MVC 参数绑定、反射调用、Tool 参数描述以及问题排查时，
+            都可能需要读取真实参数名称，因此在项目初期统一开启。
+        -->
+        <maven.compiler.parameters>true</maven.compiler.parameters>
+
+        <!-- 统一锁定 Spring AI 正式版，禁止各个 Spring AI 模块出现版本不一致。 -->
         <spring-ai.version>2.0.0</spring-ai.version>
+
+        <!-- MyBatis 4.0.0 对应 Spring Boot 4.0+。 -->
+        <mybatis-spring-boot.version>4.0.0</mybatis-spring-boot.version>
+
+        <!-- 明确项目源码、配置文件和编译输出统一使用 UTF-8。 -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
 
     <dependencyManagement>
@@ -36,7 +51,7 @@
             <dependency>
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
-                <version>2.0.0</version>
+                <version>${spring-ai.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -48,10 +63,31 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+
+        <!--
+            Bean Validation 参数校验依赖。
+
+            后续 Controller 请求对象可以使用：
+            @NotNull、@NotBlank、@Positive、@Size、@Valid 等注解，
+            避免在业务代码中重复编写基础格式校验。
+        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+
+        <!--
+            Spring MVC Web 依赖。
+
+            主要提供：
+            1. @RestController、@RequestMapping、@PostMapping 等 Web 注解；
+            2. Spring MVC 请求分发和参数绑定能力；
+            3. 内嵌 Tomcat，使项目可以直接通过 main 方法启动；
+            4. JSON 请求和响应转换能力。
+
+            Spring Boot 4 推荐使用 spring-boot-starter-webmvc，
+            不再使用已经被标记为弃用兼容入口的 spring-boot-starter-web。
+        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
@@ -63,6 +99,14 @@
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
+
+        <!--
+            Lombok 用于减少无业务价值的样板代码。
+            后续主要使用：
+            @Getter @Setter @Data @Slf4j @RequiredArgsConstructor @AllArgsConstructor
+            构造器注入默认采用：
+            @RequiredArgsConstructor(onConstructor_ = @Autowired)
+        -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -85,30 +129,102 @@
         </dependency>
 
         <!-- AI核心模型调用 -->
+        <!--
+            Spring AI OpenAI 模型 Starter。
+            虽然项目实际使用的是 Qwen/OpenAI Compatible API，
+            但对方提供了兼容 OpenAI 协议的接口，因此仍然使用此 Starter。
+            该依赖会自动配置：
+            1. OpenAI ChatModel；
+            2. ChatClient.Builder；
+            3. OpenAI Compatible HTTP 客户端；
+            4. 后续 Tool Calling 所需的基础能力。
+        -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
-        <!-- 使用 WebFlux 提供 Flux 流式输出和 SSE 接口能力。 -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webflux</artifactId>
-        </dependency>
-
+        <!-- 新版lang3包 -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
+        </dependency>
+
+        <!--
+            MyBatis Spring Boot Starter。
+            主要负责：
+            1. 根据 DataSource 创建 SqlSessionFactory；
+            2. 创建 SqlSessionTemplate；
+            3. 扫描并注册 Mapper 接口；
+            4. 加载 resources/mapper 目录下的 Mapper XML；
+            5. 将 MyBatis 与 Spring 事务体系集成。
+        -->
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <version>${mybatis-spring-boot.version}</version>
+        </dependency>
+
+        <!--
+            MySQL JDBC 驱动。
+
+            scope 设置为 runtime，表示：
+            1. 编译业务代码时不需要直接依赖 MySQL 驱动中的类；
+            2. 项目启动并连接 MySQL 时必须将驱动放入运行时类路径；
+            3. 驱动的具体版本由 Spring Boot 4.0.7 统一管理。
+        -->
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!--
+            Spring Boot 配置元数据处理器。
+            后续定义 @ConfigurationProperties 配置类时，IDEA 可以识别自定义配置项并提供自动补全、类型提示和说明。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+            Spring Boot 基础测试依赖。
+            主要包含：
+            1. JUnit Jupiter；
+            2. Mockito；
+            3. AssertJ；
+            4. Spring Test；
+            5. @SpringBootTest 等测试能力。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
 
     </dependencies>
 
     <build>
         <plugins>
+
+            <!--
+                Spring Boot Maven 插件。
+                主要作用：
+                1. 将项目打包成可以直接运行的可执行 JAR；
+                2. 支持通过 Maven 启动 Spring Boot；
+                3. 将项目依赖正确打包到最终产物中。
+            -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+
+                    <!--
+                        Lombok 只参与编译期代码生成，运行时不需要。
+                        将其从最终可执行 JAR 中排除，可以减少无意义的运行时依赖。
+                    -->
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
