@@ -1,5 +1,6 @@
 package com.ymm.coldchainai.shared.response;
 
+import com.ymm.coldchainai.shared.exception.code.CommonErrorCodeEnum;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -68,10 +69,25 @@ class YmmResultTest {
     @Test
     void shouldUseDefaultValuesWhenFailCodeAndMessageAreBlank() {
         // 传入空编码和空白信息，验证 YmmResult 不会产生缺少编码或提示信息的响应。
-        YmmResult<Void> result = YmmResult.fail(null, " ");
+        YmmResult<Void> result = YmmResult.fail((Integer) null, " ");
 
         assertEquals(EXPECTED_DEFAULT_FAIL_CODE, result.getCode());
         assertEquals(EXPECTED_DEFAULT_FAIL_MESSAGE, result.getMessage());
+        assertNull(result.getData());
+    }
+
+    /**
+     * 测试通过统一错误码枚举创建失败结果。
+     */
+    @Test
+    void shouldCreateFailResultFromErrorCodeEnum() {
+        // 使用请求体格式错误枚举，验证YmmResult能够自动读取编码和默认提示。
+        CommonErrorCodeEnum errorCode = CommonErrorCodeEnum.REQUEST_BODY_ERROR;
+
+        YmmResult<Void> result = YmmResult.fail(errorCode);
+
+        assertEquals(errorCode.getCode(), result.getCode());
+        assertEquals(errorCode.getMessage(), result.getMessage());
         assertNull(result.getData());
     }
 }

@@ -56,6 +56,16 @@ public class GlobalExceptionHandler {
     private static final Integer SYSTEM_ERROR_CODE = 50000;
 
     /**
+     * Agent执行异常编码。
+     */
+    private static final Integer AGENT_EXECUTION_ERROR_CODE = 50001;
+
+    /**
+     * Agent执行失败时返回给调用方的安全提示。
+     */
+    private static final String AGENT_EXECUTION_ERROR_MESSAGE = "Agent执行失败，请稍后重试";
+
+    /**
      * 参数校验失败时的默认提示信息。
      */
     private static final String PARAMETER_VALIDATION_ERROR_MESSAGE = "请求参数校验失败";
@@ -207,6 +217,30 @@ public class GlobalExceptionHandler {
         String errorMessage = "%s，requestId=%s".formatted(SYSTEM_ERROR_MESSAGE, requestId);
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(YmmResult.fail(SYSTEM_ERROR_CODE, errorMessage));
+    }
+
+    /**
+     * 处理Agent执行阶段发生的系统异常。
+     *
+     * @param exception Agent执行异常
+     * @param request 当前HTTP请求
+     * @return HTTP 500和包含requestId的统一失败结果
+     */
+    @ExceptionHandler(AgentExecutionException.class)
+    public ResponseEntity<YmmResult<Void>> handleAgentExecutionException(AgentExecutionException exception, HttpServletRequest request) {
+        // AgentExecutionException已经携带Application层生成的requestId，不能重新生成导致日志链路断开。
+        String requestId = exception.getRequestId();
+
+        // 请求地址用于定位发生Agent执行异常的具体接口。
+        String requestUri = getRequestUri(request);
+
+        // Agent系统异常必须记录原始异常堆栈，便于排查模型、网络、Advisor或Tool执行问题。
+        log.error("Agent执行异常，requestId={}，requestUri={}", requestId, requestUri, exception);
+
+        // 接口只返回安全提示和requestId，不直接暴露模型地址、密钥或原始异常信息。
+        String errorMessage = "%s，requestId=%s".formatted(AGENT_EXECUTION_ERROR_MESSAGE, requestId);
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(YmmResult.fail(AGENT_EXECUTION_ERROR_CODE, errorMessage));
     }
 
     /**

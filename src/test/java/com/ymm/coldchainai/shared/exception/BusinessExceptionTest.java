@@ -1,5 +1,6 @@
 package com.ymm.coldchainai.shared.exception;
 
+import com.ymm.coldchainai.shared.exception.code.CommonErrorCodeEnum;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -7,62 +8,51 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * BusinessException 单元测试。
  *
- * <p>该测试重点验证异常构造器链和默认值兜底逻辑，
- * 不需要启动 Spring 容器。</p>
+ * <p>该测试重点验证错误码枚举、异常构造器链和默认值兜底逻辑，
+ * 不需要启动Spring容器。</p>
  */
 class BusinessExceptionTest {
 
     /**
-     * 默认业务失败编码。
-     */
-    private static final Integer EXPECTED_DEFAULT_BUSINESS_ERROR_CODE = 40001;
-
-    /**
-     * 默认业务失败信息。
-     */
-    private static final String EXPECTED_DEFAULT_BUSINESS_ERROR_MESSAGE = "业务处理失败";
-
-    /**
-     * 测试单参数构造方法会自动使用默认业务编码。
+     * 测试单参数构造方法会自动使用公共默认业务错误码。
      */
     @Test
-    void shouldUseDefaultCodeWhenOnlyMessageIsProvided() {
-        // 指定业务提示信息，用于验证单参数构造方法向双参数构造方法传递默认编码。
+    void shouldUseDefaultErrorCodeWhenOnlyMessageIsProvided() {
+        // 指定业务提示信息，用于验证单参数构造方法使用默认BUSINESS_ERROR。
         String expectedMessage = "模型问题不能为空";
 
-        // 单参数构造方法内部会通过 this(...) 调用双参数构造方法。
         BusinessException businessException = new BusinessException(expectedMessage);
 
-        assertEquals(EXPECTED_DEFAULT_BUSINESS_ERROR_CODE, businessException.getCode());
+        assertEquals(CommonErrorCodeEnum.BUSINESS_ERROR.getCode(), businessException.getCode());
         assertEquals(expectedMessage, businessException.getMessage());
     }
 
     /**
-     * 测试业务编码和提示信息为空时的默认值兜底规则。
+     * 测试错误码和提示信息为空时使用公共默认业务错误。
      */
     @Test
-    void shouldUseDefaultValuesWhenCodeAndMessageAreBlank() {
-        // 传入空编码和空白信息，验证异常对象仍然包含有效业务编码和提示信息。
+    void shouldUseDefaultValuesWhenErrorCodeAndMessageAreBlank() {
+        // 传入空错误码和空白信息，验证异常对象仍然包含有效编码和提示信息。
         BusinessException businessException = new BusinessException(null, " ");
 
-        assertEquals(EXPECTED_DEFAULT_BUSINESS_ERROR_CODE, businessException.getCode());
-        assertEquals(EXPECTED_DEFAULT_BUSINESS_ERROR_MESSAGE, businessException.getMessage());
+        assertEquals(CommonErrorCodeEnum.BUSINESS_ERROR.getCode(), businessException.getCode());
+        assertEquals(CommonErrorCodeEnum.BUSINESS_ERROR.getMessage(), businessException.getMessage());
     }
 
     /**
-     * 测试指定业务编码和提示信息能够被完整保存。
+     * 测试指定错误码和自定义提示信息能够被完整保存。
      */
     @Test
-    void shouldKeepSpecifiedCodeAndMessage() {
-        // 自定义业务失败编码用于区分不同业务错误类型。
-        Integer expectedCode = 40010;
+    void shouldKeepSpecifiedErrorCodeAndCustomMessage() {
+        // 请求体错误码用于验证BusinessException可以接受任意IErrorCode实现。
+        CommonErrorCodeEnum errorCode = CommonErrorCodeEnum.REQUEST_BODY_ERROR;
 
-        // 自定义业务提示信息用于返回给前端展示。
-        String expectedMessage = "当前用户没有访问权限";
+        // 自定义提示用于验证具体业务场景可以覆盖枚举默认提示。
+        String expectedMessage = "请求体缺少question字段";
 
-        BusinessException businessException = new BusinessException(expectedCode, expectedMessage);
+        BusinessException businessException = new BusinessException(errorCode, expectedMessage);
 
-        assertEquals(expectedCode, businessException.getCode());
+        assertEquals(errorCode.getCode(), businessException.getCode());
         assertEquals(expectedMessage, businessException.getMessage());
     }
 }

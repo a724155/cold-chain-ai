@@ -1,5 +1,7 @@
 package com.ymm.coldchainai.shared.exception;
 
+import com.ymm.coldchainai.shared.exception.code.CommonErrorCodeEnum;
+import com.ymm.coldchainai.shared.exception.code.IErrorCode;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 
@@ -25,40 +27,75 @@ public class BusinessException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 默认业务失败编码。
-     */
-    private static final Integer DEFAULT_BUSINESS_ERROR_CODE = 40001;
-
-    /**
-     * 默认业务失败信息。
-     */
-    private static final String DEFAULT_BUSINESS_ERROR_MESSAGE = "业务处理失败";
-
-    /**
      * 业务失败编码。
+     *
+     * <p>具体编码来自实现 IErrorCode 的错误码枚举，
+     * BusinessException 自身不再维护散落的数字常量。</p>
      */
     private final Integer code;
 
     /**
-     * 使用指定业务编码和提示信息创建业务异常。
+     * 使用统一错误码创建业务异常。
      *
-     * @param code 业务失败编码
-     * @param message 可以返回给调用方的业务提示信息
+     * @param errorCode 统一错误码，包含业务编码和默认提示信息
      */
-    public BusinessException(Integer code, String message) {
-        // RuntimeException 保存异常信息，日志和全局异常处理器都可以通过 getMessage() 获取。
-        super(StringUtils.defaultIfBlank(message, DEFAULT_BUSINESS_ERROR_MESSAGE));
-
-        // 业务编码为空时使用默认编码，避免异常响应缺少必要字段。
-        this.code = Objects.isNull(code) ? DEFAULT_BUSINESS_ERROR_CODE : code;
+    public BusinessException(IErrorCode errorCode) {
+        // 默认使用错误码枚举中定义的提示信息。
+        this(errorCode, Objects.isNull(errorCode) ? null : errorCode.getMessage());
     }
 
     /**
-     * 使用默认业务编码和指定提示信息创建业务异常。
+     * 使用统一错误码和自定义提示信息创建业务异常。
+     *
+     * <p>错误编码由枚举统一管理，具体提示信息可以根据当前业务场景覆盖。
+     * 例如同样属于Agent参数错误，可以分别提示命令为空或问题为空。</p>
+     *
+     * @param errorCode 统一错误码
+     * @param message 可以返回给调用方的具体业务提示信息
+     */
+    public BusinessException(IErrorCode errorCode, String message) {
+        // RuntimeException保存最终提示信息，日志和全局异常处理器可以通过getMessage()获取。
+        super(resolveMessage(errorCode, message));
+
+        // 错误码对象为空时使用公共默认业务失败编码，避免异常响应缺少业务编码。
+        this.code = resolveCode(errorCode);
+    }
+
+    /**
+     * 使用公共默认业务错误码和指定提示信息创建业务异常。
      *
      * @param message 可以返回给调用方的业务提示信息
      */
     public BusinessException(String message) {
-        this(DEFAULT_BUSINESS_ERROR_CODE, message);
+        // 未明确指定业务错误码时，统一使用公共BUSINESS_ERROR。
+        this(CommonErrorCodeEnum.BUSINESS_ERROR, message);
+    }
+
+    /**
+     * 安全解析业务错误编码。
+     *
+     * @param errorCode 统一错误码
+     * @return 有效业务错误编码
+     */
+    private static Integer resolveCode(IErrorCode errorCode) {
+        if (Objects.isNull(errorCode)) {
+            return CommonErrorCodeEnum.BUSINESS_ERROR.getCode();
+        }
+
+        return errorCode.getCode();
+    }
+
+    /**
+     * 安全解析业务异常提示信息。
+     *
+     * @param errorCode 统一错误码
+     * @param message 本次业务异常的自定义提示信息
+     * @return 最终写入RuntimeException的提示信息
+     */
+    private static String resolveMessage(IErrorCode errorCode, String message) {
+        // 错误码为空时使用公共默认业务失败信息作为兜底。
+        String defaultMessage = Objects.isNull(errorCode) ? CommonErrorCodeEnum.BUSINESS_ERROR.getMessage() : errorCode.getMessage();
+
+        return StringUtils.defaultIfBlank(message, defaultMessage);
     }
 }
