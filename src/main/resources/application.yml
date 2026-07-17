@@ -32,3 +32,8 @@ mybatis:
 
     # 单条 SQL 的默认超时时间为 30 秒，避免异常 SQL 无限等待。
     default-statement-timeout: 5
+
+logging:
+  file:
+    # 默认将运行日志写入项目根目录下的 logs，也可以通过 LOG_PATH 环境变量覆盖。
+    path: ${LOG_PATH:logs}

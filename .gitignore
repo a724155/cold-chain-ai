@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+
+# Spring Boot运行时产生的日志目录，禁止提交到GitHub。
+logs/
+
+# 防止其他位置产生的日志文件被误提交。
+*.log

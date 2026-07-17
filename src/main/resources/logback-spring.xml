@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+    冷运 AI 系统日志配置。
+
+    当前日志同时输出到：
+    1. IDEA 控制台，方便本地开发阶段实时查看；
+    2. logs 目录下的滚动日志文件，方便服务运行后追查历史问题。
+-->
+<configuration>
+
+    <!-- 从 Spring 配置中读取应用名称，读取不到时使用 cold-chain-ai。 -->
+    <springProperty scope="context"
+                    name="applicationName"
+                    source="spring.application.name"
+                    defaultValue="cold-chain-ai"/>
+
+    <!-- 从 Spring 配置中读取日志目录，读取不到时使用项目根目录下的 logs。 -->
+    <springProperty scope="context"
+                    name="logPath"
+                    source="logging.file.path"
+                    defaultValue="logs"/>
+
+    <!--
+        统一日志格式。
+
+        requestId 当前尚未放入 MDC，因此正常日志暂时显示 requestId=-。
+        后续开发请求上下文和可观测性模块时，会通过过滤器将真实 requestId 放入 MDC。
+    -->
+    <property name="LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [${applicationName}] [%thread] [%logger{36}] [requestId=%X{requestId:-}] - %msg%n"/>
+
+    <!-- 控制台日志输出器，主要用于 IDEA 本地开发。 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+
+        <encoder>
+            <!-- 控制台统一使用 UTF-8，防止中文日志乱码。 -->
+            <charset>UTF-8</charset>
+
+            <!-- 控制台使用统一日志格式。 -->
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+
+    </appender>
+
+    <!--
+        文件日志输出器。
+
+        当前正在写入的日志文件：
+        logs/cold-chain-ai.log
+
+        达到切分条件后的历史日志：
+        logs/archive/cold-chain-ai.日期.序号.log.gz
+    -->
+    <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+
+        <!-- 当前正在写入的主日志文件。 -->
+        <file>${logPath}/${applicationName}.log</file>
+
+        <!-- 按日期和文件大小同时切分日志。 -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+
+            <!-- 历史日志使用日期和序号区分，并压缩成 gzip 文件减少磁盘占用。 -->
+            <fileNamePattern>${logPath}/archive/${applicationName}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+
+            <!-- 单个日志文件达到 100MB 后，在当天创建下一个序号文件。 -->
+            <maxFileSize>100MB</maxFileSize>
+
+            <!-- 最多保留最近 30 天的历史日志。 -->
+            <maxHistory>30</maxHistory>
+
+            <!-- 所有历史日志总大小最多保留 3GB，防止长期运行占满磁盘。 -->
+            <totalSizeCap>1GB</totalSizeCap>
+
+            <!-- 应用启动时立即清理超过保留条件的历史日志。 -->
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+
+        </rollingPolicy>
+
+        <encoder>
+            <!-- 文件日志统一使用 UTF-8，防止中文日志乱码。 -->
+            <charset>UTF-8</charset>
+
+            <!-- 文件日志与控制台使用相同格式，便于交叉排查。 -->
+            <pattern>${LOG_PATTERN}</pattern>
+        </encoder>
+
+    </appender>
+
+    <!--
+        根日志级别使用 INFO。
+
+        DEBUG 级别的 MyBatis Mapper 日志仍然可以通过 application-local.yml
+        对指定 Mapper 包单独开启，不需要把整个项目都调整为 DEBUG。
+    -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ROLLING_FILE"/>
+    </root>
+
+</configuration>
