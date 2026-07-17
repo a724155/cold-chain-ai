@@ -1,5 +1,7 @@
 package com.ymm.coldchainai.agent.core.application.executor;
 
+import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
+
 /**
  * Agent 执行器接口。
  *
@@ -12,11 +14,12 @@ package com.ymm.coldchainai.agent.core.application.executor;
 public interface IAgentExecutor {
 
     /**
-     * 执行一次正式 Agent 问答。
+     * 执行一次正式Agent问答。
      *
-     * @param requestId 本次 Agent 请求唯一标识
+     * @param requestId 本次Agent请求唯一标识
+     * @param agentDefinition 本次需要执行的Agent定义
      * @param question 用户问题
      * @return 模型生成的完整答案
      */
-    String execute(String requestId, String question);
+    String execute(String requestId, AgentDefinition agentDefinition, String question);
 }

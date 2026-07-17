@@ -1,5 +1,6 @@
 package com.ymm.coldchainai.agent.core.infrastructure.config;
 
+import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,20 +8,32 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Agent Core 基础配置。
  *
- * <p>该配置类负责创建正式冷运 Agent 使用的 ChatClient。
- * 第一阶段的 basicChatClient 继续用于环境验证，两者职责不同。</p>
+ * <p>该配置类负责创建正式冷运Agent使用的ChatClient，
+ * 并注册当前系统已经支持的Agent定义。</p>
  *
- * <p>后续接入订单 Tool、支付 Tool、知识检索 Tool 和 Advisor 时，
- * 统一在正式 Agent Core 配置中完成，不修改验证模块。</p>
+ * <p>后续接入司机订单Agent、支付Agent和知识Agent时，
+ * 每个Agent都需要提供独立的AgentDefinition，并根据实际能力配置提示词和Tool。</p>
  */
 @Configuration(proxyBeanMethods = false)
 public class AgentCoreConfiguration {
 
     /**
-     * 正式冷运 Agent 的基础系统提示词。
-     *
-     * <p>当前版本尚未接入任何 Tool，因此必须明确限制模型不得伪造实时业务数据。
-     * 后续订单、支付和知识检索能力会通过 Tool Calling 逐步开放。</p>
+     * 冷运综合业务助手稳定编码。
+     */
+    private static final String GENERAL_AGENT_CODE = "cold-chain-general";
+
+    /**
+     * 冷运综合业务助手展示名称。
+     */
+    private static final String GENERAL_AGENT_NAME = "冷运综合业务助手";
+
+    /**
+     * 冷运综合业务助手能力说明。
+     */
+    private static final String GENERAL_AGENT_DESCRIPTION = "提供冷运业务基础问答，并作为未指定Agent时的默认助手";
+
+    /**
+     * 正式冷运Agent的基础系统提示词。
      */
     private static final String COLD_CHAIN_AGENT_SYSTEM_PROMPT = """
             你是冷运 AI 系统的企业业务助手。
@@ -36,14 +49,25 @@ public class AgentCoreConfiguration {
             """;
 
     /**
-     * 创建正式冷运 Agent 使用的 ChatClient。
+     * 注册冷运综合业务助手定义。
      *
-     * @param chatClientBuilder Spring AI 自动配置的 ChatClient 构建器
-     * @return 设置正式 Agent 系统提示词的 ChatClient
+     * @return 默认启用的冷运综合业务助手
+     */
+    @Bean
+    public AgentDefinition coldChainGeneralAgentDefinition() {
+        // 当前系统只有一个正式Agent，因此同时设置为启用状态和默认Agent。
+        return AgentDefinition.of(GENERAL_AGENT_CODE, GENERAL_AGENT_NAME, GENERAL_AGENT_DESCRIPTION, true, true);
+    }
+
+    /**
+     * 创建正式冷运Agent使用的ChatClient。
+     *
+     * @param chatClientBuilder Spring AI自动配置的ChatClient构建器
+     * @return 设置正式Agent系统提示词的ChatClient
      */
     @Bean
     public ChatClient coldChainAgentChatClient(ChatClient.Builder chatClientBuilder) {
-        // 将正式 Agent 的系统提示词设置为默认值，避免每次模型调用时重复传入相同内容。
+        // 将正式Agent系统提示词设置为默认值，避免每次模型调用时重复传入相同内容。
         return chatClientBuilder.defaultSystem(COLD_CHAIN_AGENT_SYSTEM_PROMPT).build();
     }
 }

@@ -21,6 +21,16 @@ public class AgentAnswerDTO {
     private final String requestId;
 
     /**
+     * 本次实际执行的Agent编码。
+     */
+    private final String agentCode;
+
+    /**
+     * 本次实际执行的Agent名称。
+     */
+    private final String agentName;
+
+    /**
      * Agent 返回的完整答案。
      */
     private final String answer;

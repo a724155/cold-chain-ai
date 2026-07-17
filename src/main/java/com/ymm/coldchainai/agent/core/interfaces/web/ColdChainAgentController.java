@@ -17,11 +17,15 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 冷运 Agent 正式问答接口。
  *
- * <p>该 Controller 是正式 Agent Core 的 HTTP 入口。
- * 它只负责请求接收、对象转换、Application Service 调用和响应封装。</p>
+ * <p>该Controller是正式Agent Core的HTTP入口，
+ * 只负责请求接收、对象转换、Application Service调用和响应封装。</p>
  *
- * <p>Controller 不直接操作 ChatClient、不注册 Tool、
- * 不实现订单或支付业务规则。</p>
+ * <p><strong>前后端协议提醒：</strong>
+ * 开发前必须和前端确认请求字段、响应字段、必填性、默认值和错误码。
+ * 当前约定agentCode可以不传，question必须传；如果前端页面将来增加Agent选择器，
+ * 前后端需要共同维护可选agentCode范围，不能让前端自行写死未知编码。</p>
+ *
+ * <p>Controller不直接操作ChatClient、不注册Tool，也不实现订单或支付业务规则。</p>
  */
 @RestController
 @RequestMapping("/api/agent")
@@ -42,13 +46,13 @@ public class ColdChainAgentController {
     @PostMapping("/chat")
     public YmmResult<AgentChatResponse> chat(@Valid @RequestBody AgentChatRequest request) {
         // 将HTTP请求对象转换成Application层命令，避免Request对象穿透到业务层。
-        AgentChatCommand command = AgentChatCommand.of(request.getQuestion());
+        AgentChatCommand command = AgentChatCommand.of(request.getAgentCode(), request.getQuestion());
 
         // 调用Application Service完成Agent问答用例编排。
         AgentAnswerDTO agentAnswerDTO = coldChainAgentApplicationService.chat(command);
 
         // 将Application DTO转换成HTTP Response，保持接口对象边界清晰。
-        AgentChatResponse response = AgentChatResponse.of(agentAnswerDTO.getRequestId(), agentAnswerDTO.getAnswer(), agentAnswerDTO.getCostMillis());
+        AgentChatResponse response = AgentChatResponse.of(agentAnswerDTO.getRequestId(),  agentAnswerDTO.getAgentCode(), agentAnswerDTO.getAgentName(), agentAnswerDTO.getAnswer(), agentAnswerDTO.getCostMillis());
 
         return YmmResult.success(response);
     }
