@@ -2,7 +2,7 @@ package com.ymm.coldchainai.agent.core.infrastructure.registry;
 
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
 import com.ymm.coldchainai.shared.exception.BusinessException;
-import com.ymm.coldchainai.shared.exception.code.AgentErrorCodeEnum;
+import com.ymm.coldchainai.agent.core.application.enumtype.AgentErrorCodeEnum;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

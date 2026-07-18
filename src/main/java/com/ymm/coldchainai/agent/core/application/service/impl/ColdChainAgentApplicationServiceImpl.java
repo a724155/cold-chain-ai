@@ -8,7 +8,7 @@ import com.ymm.coldchainai.agent.core.application.service.IColdChainAgentApplica
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
 import com.ymm.coldchainai.shared.exception.AgentExecutionException;
 import com.ymm.coldchainai.shared.exception.BusinessException;
-import com.ymm.coldchainai.shared.exception.code.AgentErrorCodeEnum;
+import com.ymm.coldchainai.agent.core.application.enumtype.AgentErrorCodeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;

@@ -3,7 +3,7 @@ package com.ymm.coldchainai.agent.core.infrastructure.registry;
 import com.ymm.coldchainai.agent.core.application.registry.IAgentRegistry;
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
 import com.ymm.coldchainai.shared.exception.BusinessException;
-import com.ymm.coldchainai.shared.exception.code.AgentErrorCodeEnum;
+import com.ymm.coldchainai.agent.core.application.enumtype.AgentErrorCodeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;

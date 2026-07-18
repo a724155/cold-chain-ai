@@ -1,6 +1,7 @@
 package com.ymm.coldchainai.agent.core.infrastructure.config;
 
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
+import com.ymm.coldchainai.agent.core.infrastructure.springai.model.SpringAiAgentRuntime;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,10 +34,13 @@ public class AgentCoreConfiguration {
     private static final String GENERAL_AGENT_DESCRIPTION = "提供冷运业务基础问答，并作为未指定Agent时的默认助手";
 
     /**
-     * 正式冷运Agent的基础系统提示词。
+     * 冷运综合业务助手系统提示词。
+     *
+     * <p>该提示词只属于cold-chain-general Agent。
+     * 后续其他Agent必须定义自己的系统提示词，不能直接复用本提示词后声称具有不同业务能力。</p>
      */
-    private static final String COLD_CHAIN_AGENT_SYSTEM_PROMPT = """
-            你是冷运 AI 系统的企业业务助手。
+    private static final String COLD_CHAIN_GENERAL_AGENT_SYSTEM_PROMPT = """
+            你是冷运 AI 系统的企业综合业务助手。
 
             当前版本只具备普通模型问答能力，尚未接入司机订单查询、定金支付查询和业务规则知识检索工具。
 
@@ -60,14 +64,30 @@ public class AgentCoreConfiguration {
     }
 
     /**
-     * 创建正式冷运Agent使用的ChatClient。
+     * 创建冷运综合业务助手专属ChatClient。
      *
      * @param chatClientBuilder Spring AI自动配置的ChatClient构建器
-     * @return 设置正式Agent系统提示词的ChatClient
+     * @return 设置综合业务助手系统提示词的ChatClient
      */
     @Bean
-    public ChatClient coldChainAgentChatClient(ChatClient.Builder chatClientBuilder) {
-        // 将正式Agent系统提示词设置为默认值，避免每次模型调用时重复传入相同内容。
-        return chatClientBuilder.defaultSystem(COLD_CHAIN_AGENT_SYSTEM_PROMPT).build();
+    public ChatClient coldChainGeneralChatClient(ChatClient.Builder chatClientBuilder) {
+        // 当前ChatClient只服务于cold-chain-general Agent，不能作为所有Agent共用的通用客户端。
+        return chatClientBuilder.defaultSystem(COLD_CHAIN_GENERAL_AGENT_SYSTEM_PROMPT).build();
+    }
+
+    /**
+     * 创建冷运综合业务助手的Spring AI运行配置。
+     *
+     * <p>参数名称分别与对应Bean方法名称保持一致。
+     * Spring会将coldChainGeneralAgentDefinition和coldChainGeneralChatClient注入本方法。</p>
+     *
+     * @param coldChainGeneralAgentDefinition 冷运综合业务助手定义
+     * @param coldChainGeneralChatClient 冷运综合业务助手专属ChatClient
+     * @return 冷运综合业务助手运行配置
+     */
+    @Bean
+    public SpringAiAgentRuntime coldChainGeneralAgentRuntime(AgentDefinition coldChainGeneralAgentDefinition, ChatClient coldChainGeneralChatClient) {
+        // 使用Agent定义中的稳定编码绑定对应ChatClient，避免在两个位置重复手写agentCode。
+        return SpringAiAgentRuntime.of(coldChainGeneralAgentDefinition.getAgentCode(), coldChainGeneralChatClient);
     }
 }

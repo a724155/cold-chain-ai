@@ -1,13 +1,14 @@
-package com.ymm.coldchainai.shared.exception.code;
+package com.ymm.coldchainai.agent.core.application.enumtype;
 
+import com.ymm.coldchainai.shared.exception.code.IErrorCode;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
  * Agent Core 错误码枚举。
  *
- * <p>该枚举只管理 Agent Core 模块的业务错误和系统错误，
- * 避免 Agent 错误码散落在 Application Service、执行器和全局异常处理器中。</p>
+ * <p>该枚举只管理Agent Core模块的业务错误和系统错误，
+ * 避免错误编码和提示信息散落在Application Service、注册中心和执行器中。</p>
  */
 @Getter
 @AllArgsConstructor
@@ -36,7 +37,12 @@ public enum AgentErrorCodeEnum implements IErrorCode {
     /**
      * Agent定义为空、编码重复或默认Agent配置错误。
      */
-    AGENT_REGISTRY_CONFIGURATION_ERROR(50002, "Agent注册配置错误");
+    AGENT_REGISTRY_CONFIGURATION_ERROR(50002, "Agent注册配置错误"),
+
+    /**
+     * Agent已经完成业务注册，但没有配置对应的Spring AI运行环境。
+     */
+    AGENT_RUNTIME_CONFIGURATION_ERROR(50003, "Agent运行时配置错误");
 
     /**
      * Agent错误编码。
