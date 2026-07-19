@@ -21,14 +21,10 @@
                     source="logging.file.path"
                     defaultValue="logs"/>
 
-    <!--
-        统一日志格式。
-
-        requestId 当前尚未放入 MDC，因此正常日志暂时显示 requestId=-。
-        后续开发请求上下文和可观测性模块时，会通过过滤器将真实 requestId 放入 MDC。
-    -->
+    <!-- 统一日志格式。requestId 当前尚未放入 MDC，因此正常日志暂时显示 requestId=-。后续开发请求上下文和可观测性模块时，会通过过滤器将真实 requestId 放入 MDC。 -->
+    <!-- requestId用于串联同一次Agent请求中的日志。agentCode用于识别本次请求实际路由到了哪个Agent。 -->
     <property name="LOG_PATTERN"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [${applicationName}] [%thread] [%logger{36}] [requestId=%X{requestId:-}] - %msg%n"/>
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [${applicationName}] [%thread] [%logger{36}] [requestId=%X{requestId:-}] [agentCode=%X{agentCode:-}] - %msg%n"/>
 
     <!-- 控制台日志输出器，主要用于 IDEA 本地开发。 -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">

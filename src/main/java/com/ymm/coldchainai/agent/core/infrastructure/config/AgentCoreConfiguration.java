@@ -1,19 +1,22 @@
 package com.ymm.coldchainai.agent.core.infrastructure.config;
 
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
+import com.ymm.coldchainai.agent.core.infrastructure.advisor.AgentLifecycleLoggingAdvisor;
+import com.ymm.coldchainai.agent.core.infrastructure.advisor.ModelLifecycleLoggingAdvisor;
 import com.ymm.coldchainai.agent.core.infrastructure.springai.model.SpringAiAgentRuntime;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Agent Core 基础配置。
+ * Agent Core基础配置。
  *
- * <p>该配置类负责创建正式冷运Agent使用的ChatClient，
- * 并注册当前系统已经支持的Agent定义。</p>
+ * <p>该配置类负责注册当前系统支持的Agent定义，
+ * 并为每个Agent创建独立的Spring AI运行配置。</p>
  *
- * <p>后续接入司机订单Agent、支付Agent和知识Agent时，
- * 每个Agent都需要提供独立的AgentDefinition，并根据实际能力配置提示词和Tool。</p>
+ * <p>后续增加新的订单Agent、支付Agent或知识Agent时，不能只增加AgentDefinition。
+ * 每个可执行Agent都必须同时提供对应的ChatClient和SpringAiAgentRuntime，
+ * 否则应用启动时会因为运行配置不完整而失败。</p>
  */
 @Configuration(proxyBeanMethods = false)
 public class AgentCoreConfiguration {
@@ -66,13 +69,24 @@ public class AgentCoreConfiguration {
     /**
      * 创建冷运综合业务助手专属ChatClient。
      *
+     * <p>Agent生命周期和模型生命周期Advisor作为默认Advisor注册，
+     * 因此该ChatClient发起的每次请求都会自动经过两套日志链路。</p>
+     *
      * @param chatClientBuilder Spring AI自动配置的ChatClient构建器
-     * @return 设置综合业务助手系统提示词的ChatClient
+     * @param agentLifecycleLoggingAdvisor Agent完整调用链日志Advisor
+     * @param modelLifecycleLoggingAdvisor 单次模型调用日志Advisor
+     * @return 设置系统提示词和默认Advisor的ChatClient
      */
     @Bean
-    public ChatClient coldChainGeneralChatClient(ChatClient.Builder chatClientBuilder) {
-        // 当前ChatClient只服务于cold-chain-general Agent，不能作为所有Agent共用的通用客户端。
-        return chatClientBuilder.defaultSystem(COLD_CHAIN_GENERAL_AGENT_SYSTEM_PROMPT).build();
+    public ChatClient coldChainGeneralChatClient(ChatClient.Builder chatClientBuilder, AgentLifecycleLoggingAdvisor agentLifecycleLoggingAdvisor,
+                                                 ModelLifecycleLoggingAdvisor modelLifecycleLoggingAdvisor) {
+        /*
+         * defaultAdvisors会将Advisor注册为当前ChatClient的默认执行链。
+         * 后续每次调用不需要重复传入Advisor实例，只需要传入requestId、agentCode等动态上下文参数。
+         */
+        return chatClientBuilder.defaultSystem(COLD_CHAIN_GENERAL_AGENT_SYSTEM_PROMPT)
+                .defaultAdvisors(agentLifecycleLoggingAdvisor, modelLifecycleLoggingAdvisor)
+                .build();
     }
 
     /**

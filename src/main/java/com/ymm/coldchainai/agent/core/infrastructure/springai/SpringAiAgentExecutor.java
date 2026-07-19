@@ -4,6 +4,7 @@ import com.ymm.coldchainai.agent.core.application.enumtype.AgentErrorCodeEnum;
 import com.ymm.coldchainai.agent.core.application.executor.IAgentExecutor;
 import com.ymm.coldchainai.agent.core.application.registry.IAgentRegistry;
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
+import com.ymm.coldchainai.agent.core.infrastructure.advisor.AgentAdvisorContextKeys;
 import com.ymm.coldchainai.agent.core.infrastructure.springai.model.SpringAiAgentRuntime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,7 +65,7 @@ public class SpringAiAgentExecutor implements IAgentExecutor {
      * <p>这里需要完成运行配置集合转换、重复编码校验，
      * 以及已启用Agent与运行配置之间的一致性校验，因此手写构造方法。</p>
      *
-     * @param agentRegistry Agent业务注册中心
+     * @param agentRegistry            Agent业务注册中心
      * @param springAiAgentRuntimeList Spring容器中注册的所有Spring AI Agent运行配置
      */
     @Autowired
@@ -124,9 +125,9 @@ public class SpringAiAgentExecutor implements IAgentExecutor {
     /**
      * 执行一次正式 Agent 问答。
      *
-     * @param requestId 本次 Agent 请求唯一标识
+     * @param requestId       本次 Agent 请求唯一标识
      * @param agentDefinition 本次需要执行的Agent定义
-     * @param question 用户问题
+     * @param question        用户问题
      * @return 模型生成的完整答案
      */
     @Override
@@ -162,22 +163,19 @@ public class SpringAiAgentExecutor implements IAgentExecutor {
         // 从运行配置中获取当前Agent专属ChatClient，禁止使用全局通用ChatClient。
         ChatClient chatClient = springAiAgentRuntime.getChatClient();
 
-        // 记录实际执行的Agent编码，方便后续一个请求涉及多个Agent时定位路由结果。
-        log.info("开始调用正式Agent模型，requestId={}，agentCode={}，questionLength={}", requestId, agentDefinition.getAgentCode(), question.length());
-
         /*
-         * call()会同步等待模型完成本次回答，
-         * content()会从模型响应中提取最终文本并返回String。
-         *
-         * 当前没有使用stream()，因此这里不是Token级实时流式输出。
+         * advisorSpec.param()写入的是ChatClient Advisor上下文，不是模型Prompt。
+         * AgentLifecycleLoggingAdvisor和ModelLifecycleLoggingAdvisor会从context中读取这些字段。
          */
-        String answer = chatClient.prompt().user(question).call().content();
+        String answer = chatClient.prompt()
+                .advisors(advisorSpec -> advisorSpec.param(AgentAdvisorContextKeys.REQUEST_ID, requestId)
+                        .param(AgentAdvisorContextKeys.AGENT_CODE, agentDefinition.getAgentCode())
+                        .param(AgentAdvisorContextKeys.AGENT_NAME, agentDefinition.getAgentName()))
+                .user(question).call().content();
 
         if (StringUtils.isBlank(answer)) {
             throw new IllegalStateException(AGENT_ANSWER_IS_BLANK_MESSAGE);
         }
-
-        log.info("正式Agent模型调用完成，requestId={}，agentCode={}，answerLength={}", requestId, agentDefinition.getAgentCode(), answer.length());
 
         return answer;
     }
