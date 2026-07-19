@@ -6,6 +6,7 @@ import com.ymm.coldchainai.agent.core.application.executor.IAgentExecutor;
 import com.ymm.coldchainai.agent.core.application.registry.IAgentRegistry;
 import com.ymm.coldchainai.agent.core.application.service.IColdChainAgentApplicationService;
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
+import com.ymm.coldchainai.agent.core.domain.model.AgentExecution;
 import com.ymm.coldchainai.shared.exception.AgentExecutionException;
 import com.ymm.coldchainai.shared.exception.BusinessException;
 import com.ymm.coldchainai.agent.core.application.enumtype.AgentErrorCodeEnum;
@@ -75,45 +76,50 @@ public class ColdChainAgentApplicationServiceImpl implements IColdChainAgentAppl
             throw new BusinessException(AgentErrorCodeEnum.AGENT_PARAMETER_ERROR, AGENT_QUESTION_IS_BLANK_MESSAGE);
         }
 
-        /*
-         * 注册中心根据agentCode选择Agent。
-         * agentCode为空时返回默认Agent；不存在或已停用时直接抛出业务异常，不调用模型。
-         */
+        // 注册中心根据agentCode选择Agent。agentCode为空时返回默认Agent；不存在或已停用时直接抛出业务异常，不调用模型。
         AgentDefinition agentDefinition = agentRegistry.getRequiredAgent(command.getAgentCode());
 
-        /*
-         * requestId 用于关联本次接口响应、Application日志、模型执行日志和异常日志。
-         * 当前使用无横线UUID，便于复制、检索和后续存入数据库。
-         */
+        // requestId 用于关联本次接口响应、Application日志、模型执行日志和异常日志。当前使用无横线UUID，便于复制、检索和后续存入数据库。
         String requestId = UUID.randomUUID().toString().replace("-", "");
 
-        // startTimeMillis 记录Agent开始执行时间，用于计算完整调用耗时。
-        long startTimeMillis = System.currentTimeMillis();
+        // 创建Agent执行任务单，但此时尚未真正启动模型。在挖矿流程中，相当于项目经理先根据客户需求和矿区档案开具正式作业单。
+        AgentExecution agentExecution = AgentExecution.create(requestId, agentDefinition, command.getQuestion());
 
-        // 只记录问题长度，避免将完整用户问题直接写入普通业务日志。
-        log.info("正式Agent问答开始，requestId={}，agentCode={}，questionLength={}", requestId, agentDefinition.getAgentCode(), command.getQuestion().length());
+        // 推进到RUNNING状态后，才允许真正调用Agent执行器。
+        agentExecution.start();
+
+        log.info("正式Agent问答开始，requestId={}，agentCode={}，status={}，questionLength={}",
+                agentExecution.getRequestId(), agentExecution.getAgentCode(), agentExecution.getStatus(), agentExecution.getQuestionLength());
+
+        String answer;
 
         try {
-            // 调用Agent执行器，Application层不直接操作Spring AI ChatClient。
-            String answer = agentExecutor.execute(requestId, agentDefinition, command.getQuestion());
-
-            // costMillis 表示从Application开始调用到获得完整模型答案的总耗时。
-            long costMillis = System.currentTimeMillis() - startTimeMillis;
-
-            log.info("正式Agent问答成功，requestId={}，costMillis={}，answerLength={}", requestId, costMillis, answer.length());
-
-            return AgentAnswerDTO.of(requestId, agentDefinition.getAgentCode(), agentDefinition.getAgentName(), answer, costMillis);
+            // Agent执行器相当于矿场设备操作员，根据任务单上的矿区编号找到专属设备并真正开始作业。Application层只负责编排，不直接操作ChatClient。
+            answer = agentExecutor.execute(requestId, agentDefinition, command.getQuestion());
         } catch (BusinessException exception) {
-            // 可预期业务异常保持原样向上传递，由全局业务异常处理方法统一处理。
+            // Tool或其他业务能力可能产生可预期业务异常，任务单也必须明确记录为失败。
+            agentExecution.fail(exception.getCode(), exception.getMessage());
+
+            log.warn("正式Agent问答业务失败，requestId={}，agentCode={}，status={}，costMillis={}，errorCode={}",
+                    agentExecution.getRequestId(), agentExecution.getAgentCode(), agentExecution.getStatus(), agentExecution.getCostMillis(), agentExecution.getErrorCode());
+
             throw exception;
         } catch (Exception exception) {
-            // 计算失败前已经消耗的时间，便于定位模型超时、网络异常或执行器故障。
-            long costMillis = System.currentTimeMillis() - startTimeMillis;
+            // 系统异常使用统一Agent执行错误码记录，原始异常仍通过AgentExecutionException保留。
+            agentExecution.fail(AgentErrorCodeEnum.AGENT_EXECUTION_ERROR.getCode(), AgentErrorCodeEnum.AGENT_EXECUTION_ERROR.getMessage());
 
-            log.warn("正式Agent问答执行失败，requestId={}，costMillis={}，exceptionType={}", requestId, costMillis, exception.getClass().getName());
+            log.warn("正式Agent问答执行失败，requestId={}，agentCode={}，status={}，costMillis={}，exceptionType={}",
+                    agentExecution.getRequestId(), agentExecution.getAgentCode(), agentExecution.getStatus(), agentExecution.getCostMillis(), exception.getClass().getName());
 
-            // 使用Agent模块统一执行错误码包装原始异常，同时保留本次请求的requestId。
             throw new AgentExecutionException(requestId, AgentErrorCodeEnum.AGENT_EXECUTION_ERROR, exception);
         }
+
+        // 只有执行器正常返回有效答案后，才允许将任务单推进到SUCCEEDED状态。
+        agentExecution.succeed(answer);
+
+        log.info("正式Agent问答成功，requestId={}，agentCode={}，status={}，costMillis={}，answerLength={}",
+                agentExecution.getRequestId(), agentExecution.getAgentCode(), agentExecution.getStatus(), agentExecution.getCostMillis(), agentExecution.getAnswerLength());
+
+        return AgentAnswerDTO.of(agentExecution.getRequestId(), agentExecution.getAgentCode(), agentExecution.getAgentName(), answer, agentExecution.getCostMillis());
     }
 }

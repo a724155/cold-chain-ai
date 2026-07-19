@@ -5,7 +5,7 @@ import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
 import java.util.List;
 
 /**
- * Agent 注册中心接口。
+ * Agent 注册中心接口。查找哪个矿区
  *
  * <p>Application Service通过该接口查找Agent定义，
  * 不直接依赖Spring Bean容器、配置文件或数据库等具体注册方式。</p>

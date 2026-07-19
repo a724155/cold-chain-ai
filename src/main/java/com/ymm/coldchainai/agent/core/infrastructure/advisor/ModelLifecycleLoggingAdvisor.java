@@ -1,6 +1,8 @@
 package com.ymm.coldchainai.agent.core.infrastructure.advisor;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
@@ -12,9 +14,11 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * 模型生命周期日志Advisor。和AgentLifecycleLoggingAdvisor相比，类似于矿场挖掘机仪表员，关心“每一次启动机器消耗多少能源、用了多久、机器
@@ -99,8 +103,8 @@ public class ModelLifecycleLoggingAdvisor implements CallAdvisor {
             // costMillis只统计当前这一轮模型调用以及其内部下游处理耗时。
             long costMillis = System.currentTimeMillis() - startTimeMillis;
 
-            // ChatClientResponse可能只包含上下文，因此需要先安全取得ChatResponse。
-            ChatResponse chatResponse = Objects.isNull(chatClientResponse) ? null : chatClientResponse.chatResponse();
+            // chatClientResponse始终非空，可以不用判空
+            ChatResponse chatResponse = chatClientResponse.chatResponse();
 
             // 模型元数据通常包含模型名称、响应ID和Token用量，但兼容服务不一定全部返回。
             ChatResponseMetadata chatResponseMetadata = Objects.isNull(chatResponse) ? null : chatResponse.getMetadata();
@@ -152,7 +156,7 @@ public class ModelLifecycleLoggingAdvisor implements CallAdvisor {
 
         Map<String, Object> context = chatClientRequest.context();
 
-        if (Objects.isNull(context) || context.isEmpty()) {
+        if (MapUtils.isEmpty(context)) {
             return UNKNOWN_VALUE;
         }
 
@@ -172,17 +176,10 @@ public class ModelLifecycleLoggingAdvisor implements CallAdvisor {
      * @return Prompt消息数量
      */
     private int resolveMessageCount(ChatClientRequest chatClientRequest) {
-        if (Objects.isNull(chatClientRequest) || Objects.isNull(chatClientRequest.prompt())) {
+        if (Objects.isNull(chatClientRequest)) {
             return 0;
         }
-
-        List<?> messageList = chatClientRequest.prompt().getInstructions();
-
-        if (Objects.isNull(messageList)) {
-            return 0;
-        }
-
-        return messageList.size();
+        return chatClientRequest.prompt().getInstructions().size();
     }
 
     /**
@@ -220,7 +217,7 @@ public class ModelLifecycleLoggingAdvisor implements CallAdvisor {
      * @return 模型生成结果数量
      */
     private int resolveGenerationCount(ChatResponse chatResponse) {
-        if (Objects.isNull(chatResponse) || Objects.isNull(chatResponse.getResults())) {
+        if (Objects.isNull(chatResponse)) {
             return 0;
         }
 

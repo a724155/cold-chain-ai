@@ -3,7 +3,7 @@ package com.ymm.coldchainai.agent.core.application.executor;
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
 
 /**
- * Agent 执行器接口。
+ * Agent 执行器接口。矿场操作员
  *
  * <p>Application Service 只依赖该接口，不直接依赖 Spring AI、ChatClient
  * 或某个具体模型厂商。</p>

@@ -44,6 +44,9 @@
         <!-- 明确项目源码、配置文件和编译输出统一使用 UTF-8。 -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- Apache Commons Collections版本，用于统一管理Map、List和Collection空安全操作。 -->
+        <commons-collections4.version>4.5.0</commons-collections4.version>
     </properties>
 
     <dependencyManagement>
@@ -149,6 +152,21 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
         </dependency>
+
+        <!--
+            Apache Commons Collections 4。
+            后续新代码中的集合空安全判断可以使用：
+            MapUtils.isEmpty(map)
+            CollectionUtils.isEmpty(collection)
+            ListUtils.emptyIfNull(list)
+            该依赖主要解决集合判空、集合转换和集合包装等通用问题，不用于替代Java Stream或业务领域中的集合处理规则。
+        -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>${commons-collections4.version}</version>
+        </dependency>
+
 
         <!--
             MyBatis Spring Boot Starter。
