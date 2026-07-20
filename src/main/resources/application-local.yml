@@ -43,3 +43,7 @@ logging:
 
     # 数据库验证 Mapper 使用 DEBUG，便于本地查看真实执行的 SQL。
     com.ymm.coldchainai.verification.infrastructure.persistence.mapper: DEBUG
+
+    # 本地开发时输出Agent执行记录Mapper SQL，便于观察状态流转。
+    com.ymm.coldchainai.agent.core.infrastructure.persistence.mapper: DEBUG
+

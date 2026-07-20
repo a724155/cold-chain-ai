@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- Agent执行记录MyBatis映射。 -->
+<mapper namespace="com.ymm.coldchainai.agent.core.infrastructure.persistence.mapper.IAgentExecutionMapper">
+
+    <!-- 插入一条处于CREATED状态的新Agent任务记录。 -->
+    <insert id="insertCreated" parameterType="com.ymm.coldchainai.agent.core.infrastructure.persistence.dataobject.AgentExecutionDO">
+
+        INSERT INTO cold_chain_agent_execution
+        (
+        request_id,
+        agent_code,
+        agent_name,
+        question_length,
+        execution_status,
+        create_time
+        )
+        VALUES
+        (
+        #{requestId},
+        #{agentCode},
+        #{agentName},
+        #{questionLength},
+        #{executionStatus},
+        #{createTime}
+        )
+
+    </insert>
+
+    <!--
+        将状态从CREATED更新为RUNNING。
+        expectedStatus会进入WHERE条件，防止同一任务重复开工或从错误状态进入RUNNING。
+    -->
+    <update id="updateToRunning" parameterType="com.ymm.coldchainai.agent.core.infrastructure.persistence.dataobject.AgentExecutionDO">
+
+        UPDATE cold_chain_agent_execution
+        SET execution_status = #{executionStatus},
+        start_time = #{startTime}
+        WHERE request_id = #{requestId}
+        AND execution_status = #{expectedStatus}
+
+    </update>
+
+    <!--
+        将状态从RUNNING更新为SUCCEEDED。
+
+        只有数据库中仍然处于RUNNING的记录才能成功更新，
+        已失败或已成功的记录不会被重复覆盖。
+    -->
+    <update id="updateToSucceeded" parameterType="com.ymm.coldchainai.agent.core.infrastructure.persistence.dataobject.AgentExecutionDO">
+
+        UPDATE cold_chain_agent_execution
+        SET execution_status = #{executionStatus},
+        answer_length = #{answerLength},
+        finish_time = #{finishTime},
+        cost_millis = #{costMillis},
+        error_code = NULL,
+        error_message = NULL
+        WHERE request_id = #{requestId}
+        AND execution_status = #{expectedStatus}
+
+    </update>
+
+    <!--
+        将状态从RUNNING更新为FAILED。
+
+        原始异常堆栈不会保存到表中，
+        数据库只保存可以安全查询的错误编码和提示信息。
+    -->
+    <update id="updateToFailed" parameterType="com.ymm.coldchainai.agent.core.infrastructure.persistence.dataobject.AgentExecutionDO">
+
+        UPDATE cold_chain_agent_execution
+        SET execution_status = #{executionStatus},
+        error_code = #{errorCode},
+        error_message = #{errorMessage},
+        finish_time = #{finishTime},
+        cost_millis = #{costMillis}
+        WHERE request_id = #{requestId}
+        AND execution_status = #{expectedStatus}
+
+    </update>
+
+</mapper>

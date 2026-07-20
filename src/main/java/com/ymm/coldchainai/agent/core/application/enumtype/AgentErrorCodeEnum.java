@@ -42,7 +42,12 @@ public enum AgentErrorCodeEnum implements IErrorCode {
     /**
      * Agent已经完成业务注册，但没有配置对应的Spring AI运行环境。
      */
-    AGENT_RUNTIME_CONFIGURATION_ERROR(50003, "Agent运行时配置错误");
+    AGENT_RUNTIME_CONFIGURATION_ERROR(50003, "Agent运行时配置错误"),
+
+    /**
+     * Agent执行记录插入、状态更新或数据库状态校验失败。
+     */
+    AGENT_EXECUTION_PERSISTENCE_ERROR(50004, "Agent执行记录持久化失败");
 
     /**
      * Agent错误编码。

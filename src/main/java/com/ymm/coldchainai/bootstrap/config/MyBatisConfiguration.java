@@ -1,5 +1,6 @@
 package com.ymm.coldchainai.bootstrap.config;
 
+import com.ymm.coldchainai.agent.core.infrastructure.persistence.mapper.IAgentExecutionMapper;
 import com.ymm.coldchainai.verification.infrastructure.persistence.mapper.IDatabaseVerificationMapper;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +16,6 @@ import org.springframework.context.annotation.Configuration;
  * 不提前配置尚未创建的空软件包。</p>
  */
 @Configuration(proxyBeanMethods = false)
-@MapperScan(basePackageClasses = IDatabaseVerificationMapper.class)
+@MapperScan(basePackageClasses = {IDatabaseVerificationMapper.class, IAgentExecutionMapper.class})
 public class MyBatisConfiguration {
 }
