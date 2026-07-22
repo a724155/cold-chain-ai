@@ -1,6 +1,7 @@
 package com.ymm.coldchainai.agent.core.application.service.impl;
 
 import com.ymm.coldchainai.agent.core.application.command.AgentChatCommand;
+import com.ymm.coldchainai.agent.core.application.context.AgentInvocationContext;
 import com.ymm.coldchainai.agent.core.application.dto.AgentAnswerDTO;
 import com.ymm.coldchainai.agent.core.application.enumtype.AgentErrorCodeEnum;
 import com.ymm.coldchainai.agent.core.application.executor.IAgentExecutor;
@@ -9,6 +10,7 @@ import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
 import com.ymm.coldchainai.agent.core.domain.model.AgentExecution;
 import com.ymm.coldchainai.agent.core.domain.repository.IAgentExecutionRepository;
 import com.ymm.coldchainai.shared.exception.AgentExecutionException;
+import com.ymm.coldchainai.shared.security.context.ICurrentUserContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
@@ -76,6 +78,12 @@ class ColdChainAgentApplicationServiceImplTest {
     private IAgentExecutionRepository agentExecutionRepository;
 
     /**
+     * 模拟当前登录用户上下文。
+     */
+    @Mock
+    private ICurrentUserContext currentUserContext;
+
+    /**
      * 将模拟依赖注入被测试Application Service。
      */
     @InjectMocks
@@ -90,7 +98,9 @@ class ColdChainAgentApplicationServiceImplTest {
         AgentChatCommand command = AgentChatCommand.of(AGENT_CODE, QUESTION);
 
         when(agentRegistry.getRequiredAgent(AGENT_CODE)).thenReturn(agentDefinition);
-        when(agentExecutor.execute(anyString(), same(agentDefinition), eq(QUESTION))).thenReturn(AGENT_ANSWER);
+        when(agentExecutor.execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), eq(QUESTION))).thenReturn(AGENT_ANSWER);
+        when(currentUserContext.getCurrentUserId()).thenReturn(90001L);
+        when(currentUserContext.getCurrentTenantId()).thenReturn(1001L);
 
         AgentAnswerDTO agentAnswerDTO = coldChainAgentApplicationService.chat(command);
 
@@ -105,7 +115,7 @@ class ColdChainAgentApplicationServiceImplTest {
         InOrder inOrder = inOrder(agentExecutionRepository, agentExecutor);
         inOrder.verify(agentExecutionRepository).saveCreated(any(AgentExecution.class));
         inOrder.verify(agentExecutionRepository).updateToRunning(any(AgentExecution.class));
-        inOrder.verify(agentExecutor).execute(anyString(), same(agentDefinition), eq(QUESTION));
+        inOrder.verify(agentExecutor).execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), eq(QUESTION));
         inOrder.verify(agentExecutionRepository).updateToSucceeded(any(AgentExecution.class));
     }
 
@@ -117,8 +127,11 @@ class ColdChainAgentApplicationServiceImplTest {
         AgentDefinition agentDefinition = AgentDefinition.of(AGENT_CODE, AGENT_NAME, "测试Agent", true, true);
         AgentChatCommand command = AgentChatCommand.of(AGENT_CODE, QUESTION);
 
+        when(currentUserContext.getCurrentUserId()).thenReturn(90001L);
+        when(currentUserContext.getCurrentTenantId()).thenReturn(1001L);
+
         when(agentRegistry.getRequiredAgent(AGENT_CODE)).thenReturn(agentDefinition);
-        when(agentExecutor.execute(anyString(), same(agentDefinition), eq(QUESTION))).thenThrow(new IllegalStateException("模拟模型调用失败"));
+        when(agentExecutor.execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), eq(QUESTION))).thenThrow(new IllegalStateException("模拟模型调用失败"));
 
         AgentExecutionException exception = assertThrows(AgentExecutionException.class, () -> coldChainAgentApplicationService.chat(command));
 

@@ -4,6 +4,7 @@ import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
 import com.ymm.coldchainai.agent.core.infrastructure.advisor.AgentLifecycleLoggingAdvisor;
 import com.ymm.coldchainai.agent.core.infrastructure.advisor.ModelLifecycleLoggingAdvisor;
 import com.ymm.coldchainai.agent.core.infrastructure.springai.model.SpringAiAgentRuntime;
+import com.ymm.coldchainai.order.interfaces.tool.DriverOrderQueryTool;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,17 +44,21 @@ public class AgentCoreConfiguration {
      * 后续其他Agent必须定义自己的系统提示词，不能直接复用本提示词后声称具有不同业务能力。</p>
      */
     private static final String COLD_CHAIN_GENERAL_AGENT_SYSTEM_PROMPT = """
-            你是冷运 AI 系统的企业综合业务助手。
+        你是冷运 AI 系统的企业综合业务助手。
 
-            当前版本只具备普通模型问答能力，尚未接入司机订单查询、定金支付查询和业务规则知识检索工具。
+        当前已经接入司机成交订单查询工具query_driver_deal_orders，
+        但尚未接入定金支付查询和公司业务规则知识检索工具。
 
-            请遵守以下规则：
-            1. 回答必须准确、清晰、简洁。
-            2. 不得伪造司机、订单、支付单、用户、租户或公司内部业务数据。
-            3. 用户询问实时订单或支付数据时，必须明确说明当前尚未接入对应查询工具。
-            4. 不得声称已经查询数据库、调用接口或读取公司文件。
-            5. 不确定的信息必须明确说明不确定，不能编造答案。
-            """;
+        请遵守以下规则：
+        1. 回答必须准确、清晰、简洁。
+        2. 用户询问指定司机今天或某天是否存在成交订单、成交了哪些订单时，必须调用query_driver_deal_orders工具。
+        3. 用户说“今天”时，调用订单工具可以省略queryDate，由工具按照冷运业务时区计算当前日期。
+        4. 订单事实必须以工具返回结果为准，不得根据常识、历史对话或示例订单号自行编造。
+        5. 工具返回hasDealOrder=false时，应明确告诉用户该日期没有查询到成交订单。
+        6. 工具返回success=false时，应根据errorMessage说明参数问题，不能伪造查询结果。
+        7. 用户询问支付或公司规则时，必须说明当前尚未接入对应工具。
+        8. 不确定的信息必须明确说明不确定，不能编造答案。
+        """;
 
     /**
      * 注册冷运综合业务助手定义。
@@ -75,17 +80,20 @@ public class AgentCoreConfiguration {
      * @param chatClientBuilder Spring AI自动配置的ChatClient构建器
      * @param agentLifecycleLoggingAdvisor Agent完整调用链日志Advisor
      * @param modelLifecycleLoggingAdvisor 单次模型调用日志Advisor
+     * @param driverOrderQueryTool 司机成交订单查询Tool
      * @return 设置系统提示词和默认Advisor的ChatClient
      */
     @Bean
     public ChatClient coldChainGeneralChatClient(ChatClient.Builder chatClientBuilder, AgentLifecycleLoggingAdvisor agentLifecycleLoggingAdvisor,
-                                                 ModelLifecycleLoggingAdvisor modelLifecycleLoggingAdvisor) {
+                                                 ModelLifecycleLoggingAdvisor modelLifecycleLoggingAdvisor,
+                                                 DriverOrderQueryTool driverOrderQueryTool) {
         /*
          * defaultAdvisors会将Advisor注册为当前ChatClient的默认执行链。
          * 后续每次调用不需要重复传入Advisor实例，只需要传入requestId、agentCode等动态上下文参数。
          */
         return chatClientBuilder.defaultSystem(COLD_CHAIN_GENERAL_AGENT_SYSTEM_PROMPT)
                 .defaultAdvisors(agentLifecycleLoggingAdvisor, modelLifecycleLoggingAdvisor)
+                .defaultTools(driverOrderQueryTool)
                 .build();
     }
 

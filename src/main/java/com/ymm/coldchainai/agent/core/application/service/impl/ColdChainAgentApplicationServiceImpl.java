@@ -1,6 +1,7 @@
 package com.ymm.coldchainai.agent.core.application.service.impl;
 
 import com.ymm.coldchainai.agent.core.application.command.AgentChatCommand;
+import com.ymm.coldchainai.agent.core.application.context.AgentInvocationContext;
 import com.ymm.coldchainai.agent.core.application.dto.AgentAnswerDTO;
 import com.ymm.coldchainai.agent.core.application.executor.IAgentExecutor;
 import com.ymm.coldchainai.agent.core.application.registry.IAgentRegistry;
@@ -11,6 +12,7 @@ import com.ymm.coldchainai.agent.core.domain.repository.IAgentExecutionRepositor
 import com.ymm.coldchainai.shared.exception.AgentExecutionException;
 import com.ymm.coldchainai.shared.exception.BusinessException;
 import com.ymm.coldchainai.agent.core.application.enumtype.AgentErrorCodeEnum;
+import com.ymm.coldchainai.shared.security.context.ICurrentUserContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -62,6 +64,14 @@ public class ColdChainAgentApplicationServiceImpl implements IColdChainAgentAppl
      */
     private final IAgentExecutionRepository agentExecutionRepository;
 
+    /**
+     * 当前登录用户上下文。
+     *
+     * <p>Application层通过该端口读取受信任用户和租户信息，
+     * 不从AgentChatRequest或模型参数中接收tenantId。</p>
+     */
+    private final ICurrentUserContext currentUserContext;
+
 
     /**
      * 执行一次冷运 Agent 问答。
@@ -84,6 +94,10 @@ public class ColdChainAgentApplicationServiceImpl implements IColdChainAgentAppl
         // 注册中心根据agentCode选择Agent。agentCode为空时返回默认Agent；不存在或已停用时直接抛出业务异常，不调用模型。
         AgentDefinition agentDefinition = agentRegistry.getRequiredAgent(command.getAgentCode());
 
+        // 当前用户和租户身份来自后端认证上下文，不能从Controller请求或模型Tool参数中获取。在挖矿流程中，相当于项目经理先核验客户身份并附上真实许可证，再创建正式挖矿任务。
+        AgentInvocationContext agentInvocationContext = AgentInvocationContext.create(currentUserContext.getCurrentUserId(),
+                currentUserContext.getCurrentTenantId());
+
         // requestId 用于关联本次接口响应、Application日志、模型执行日志和异常日志。当前使用无横线UUID，便于复制、检索和后续存入数据库。
         String requestId = UUID.randomUUID().toString().replace("-", "");
 
@@ -100,16 +114,14 @@ public class ColdChainAgentApplicationServiceImpl implements IColdChainAgentAppl
 
         try {
             // Agent执行器相当于矿场设备操作员，根据任务单上的矿区编号找到专属设备并真正开始作业。Application层只负责编排，不直接操作ChatClient。
-            answer = agentExecutor.execute(requestId, agentDefinition, command.getQuestion());
+            answer = agentExecutor.execute(requestId, agentDefinition, agentInvocationContext, command.getQuestion());
         } catch (BusinessException exception) {
             // 可预期业务失败同样需要把任务单从RUNNING更新为FAILED。
             markExecutionFailed(agentExecution, exception.getCode(), exception.getMessage(), exception);
-
             throw exception;
         } catch (Exception exception) {
             // 模型、网络、Advisor或Tool异常统一记录为Agent执行失败。
             markExecutionFailed(agentExecution, AgentErrorCodeEnum.AGENT_EXECUTION_ERROR.getCode(), AgentErrorCodeEnum.AGENT_EXECUTION_ERROR.getMessage(), exception);
-
             throw new AgentExecutionException(requestId, AgentErrorCodeEnum.AGENT_EXECUTION_ERROR, exception);
         }
 

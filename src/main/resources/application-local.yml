@@ -50,3 +50,11 @@ logging:
     # 输出冷运订单查询SQL和参数，便于本地验证租户、司机和成交时间范围。
     com.ymm.coldchainai.order.infrastructure.persistence.mapper: DEBUG
 
+cold-chain-ai:
+  security:
+    local:
+      # 本地开发环境模拟的已认证用户ID，不能由前端或模型覆盖。
+      current-user-id: ${LOCAL_CURRENT_USER_ID:90001}
+
+      # 本地开发环境模拟的已认证租户ID，与订单演示数据中的tenant_id保持一致。
+      current-tenant-id: ${LOCAL_CURRENT_TENANT_ID:1001}
