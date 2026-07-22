@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- 冷运定金支付单MyBatis映射。 -->
+<mapper namespace="com.ymm.coldchainai.payment.infrastructure.persistence.mapper.IColdChainPayOrderMapper">
+
+    <!-- 明确声明数据库字段与ColdChainDepositPayOrderDO属性之间的映射关系。 -->
+    <resultMap id="ColdChainDepositPayOrderResultMap"
+               type="com.ymm.coldchainai.payment.infrastructure.persistence.dataobject.ColdChainDepositPayOrderDO">
+
+        <id property="id" column="id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="payOrderNo" column="pay_order_no"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="driverId" column="driver_id"/>
+        <result property="depositAmountCent" column="deposit_amount_cent"/>
+        <result property="payStatus" column="pay_status"/>
+        <result property="payExpireTime" column="pay_expire_time"/>
+        <result property="paidTime" column="paid_time"/>
+        <result property="failureReason" column="failure_reason"/>
+        <result property="createTime" column="create_time"/>
+
+    </resultMap>
+
+    <!--
+        查询一张业务订单最新创建的定金支付单。
+
+        create_time相同时继续按照id倒序，
+        保证查询结果稳定且始终只返回一条记录。
+    -->
+    <select id="selectLatestDepositPayOrder" resultMap="ColdChainDepositPayOrderResultMap">
+
+        SELECT
+        id,
+        tenant_id,
+        pay_order_no,
+        order_no,
+        driver_id,
+        deposit_amount_cent,
+        pay_status,
+        pay_expire_time,
+        paid_time,
+        failure_reason,
+        create_time
+        FROM cold_chain_deposit_pay_order
+        WHERE tenant_id = #{tenantId}
+        AND order_no = #{orderNo}
+        ORDER BY create_time DESC,
+        id DESC
+        LIMIT 1
+
+    </select>
+
+</mapper>

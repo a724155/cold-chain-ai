@@ -50,6 +50,9 @@ logging:
     # 输出冷运订单查询SQL和参数，便于本地验证租户、司机和成交时间范围。
     com.ymm.coldchainai.order.infrastructure.persistence.mapper: DEBUG
 
+    # 输出冷运定金支付单查询SQL，便于观察租户隔离和最新支付单选择结果。
+    com.ymm.coldchainai.payment.infrastructure.persistence.mapper: DEBUG
+
 cold-chain-ai:
   security:
     local:

@@ -8,6 +8,8 @@ import com.ymm.coldchainai.payment.domain.model.ColdChainDepositPayOrder;
 import com.ymm.coldchainai.payment.domain.repository.IColdChainPayOrderRepository;
 import com.ymm.coldchainai.shared.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -23,10 +25,9 @@ import java.util.Optional;
  * <p><strong>产品需求提醒：</strong>
  * 当前采用“查询最新创建支付单”的暂定规则。真实上线前必须确认：如果最新支付单失败，但更早的一笔已经成功，最终应该返回哪一笔，不能直接沿用教学规则。</p>
  *
- * <p>当前类暂时不添加@Service，因为下一小步才会创建IColdChainPayOrderRepository的
- * MyBatis实现。提前注册会导致Spring启动时找不到Repository Bean。</p>
  */
-@RequiredArgsConstructor
+@Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class OrderDepositQueryServiceImpl implements IOrderDepositQueryService {
 
     /**

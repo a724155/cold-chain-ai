@@ -2,6 +2,7 @@ package com.ymm.coldchainai.bootstrap.config;
 
 import com.ymm.coldchainai.agent.core.infrastructure.persistence.mapper.IAgentExecutionMapper;
 import com.ymm.coldchainai.order.infrastructure.persistence.mapper.IColdChainOrderMapper;
+import com.ymm.coldchainai.payment.infrastructure.persistence.mapper.IColdChainPayOrderMapper;
 import com.ymm.coldchainai.verification.infrastructure.persistence.mapper.IDatabaseVerificationMapper;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,7 @@ import org.springframework.context.annotation.Configuration;
 @MapperScan(basePackageClasses = {
         IDatabaseVerificationMapper.class,
         IAgentExecutionMapper.class,
-        IColdChainOrderMapper.class})
+        IColdChainOrderMapper.class,
+        IColdChainPayOrderMapper.class})
 public class MyBatisConfiguration {
 }
