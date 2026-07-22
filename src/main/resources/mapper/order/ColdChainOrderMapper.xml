@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<!-- 冷运订单MyBatis映射。 -->
+<mapper namespace="com.ymm.coldchainai.order.infrastructure.persistence.mapper.IColdChainOrderMapper">
+
+    <!--
+        明确声明数据库字段与ColdChainOrderDO属性的映射关系。
+        即使项目已经开启下划线转驼峰，关键业务Mapper仍然显式定义resultMap，
+        方便后续字段改名、排查映射问题和阅读SQL返回结构。
+    -->
+    <resultMap id="ColdChainOrderResultMap"
+               type="com.ymm.coldchainai.order.infrastructure.persistence.dataobject.ColdChainOrderDO">
+
+        <id property="id" column="id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="driverId" column="driver_id"/>
+        <result property="pickupCity" column="pickup_city"/>
+        <result property="deliveryCity" column="delivery_city"/>
+        <result property="orderStatus" column="order_status"/>
+        <result property="dealTime" column="deal_time"/>
+
+    </resultMap>
+
+    <!--
+        查询司机在指定时间范围内发生过成交的订单。
+
+        时间范围使用：
+        deal_time >= dealStartTime
+        deal_time < dealEndTime
+
+        不使用当天23:59:59作为结束条件，避免DATETIME毫秒精度造成边界遗漏。
+    -->
+    <select id="selectDriverDealOrderList" resultMap="ColdChainOrderResultMap">
+
+        SELECT
+        id,
+        tenant_id,
+        order_no,
+        driver_id,
+        pickup_city,
+        delivery_city,
+        order_status,
+        deal_time
+        FROM cold_chain_order
+        WHERE tenant_id = #{tenantId}
+        AND driver_id = #{driverId}
+        AND deal_time <![CDATA[ >= ]]> #{dealStartTime}
+        AND deal_time <![CDATA[ < ]]> #{dealEndTime}
+        ORDER BY deal_time DESC,
+        id DESC LIMIT #{maxResultCount}
+
+    </select>
+
+</mapper>

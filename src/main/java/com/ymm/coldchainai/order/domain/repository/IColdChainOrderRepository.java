@@ -28,5 +28,6 @@ public interface IColdChainOrderRepository {
      * @param maxResultCount 最大返回数量
      * @return 满足条件的冷运订单列表
      */
-    List<ColdChainOrder> listDriverDealOrderList(Long tenantId, Long driverId, LocalDateTime dealStartTime, LocalDateTime dealEndTime, Integer maxResultCount);
+    List<ColdChainOrder> listDriverDealOrderList(Long tenantId, Long driverId, LocalDateTime dealStartTime,
+                                                 LocalDateTime dealEndTime, Integer maxResultCount);
 }

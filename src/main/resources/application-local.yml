@@ -47,3 +47,6 @@ logging:
     # 本地开发时输出Agent执行记录Mapper SQL，便于观察状态流转。
     com.ymm.coldchainai.agent.core.infrastructure.persistence.mapper: DEBUG
 
+    # 输出冷运订单查询SQL和参数，便于本地验证租户、司机和成交时间范围。
+    com.ymm.coldchainai.order.infrastructure.persistence.mapper: DEBUG
+

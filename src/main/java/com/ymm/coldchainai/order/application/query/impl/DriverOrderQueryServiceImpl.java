@@ -9,6 +9,8 @@ import com.ymm.coldchainai.order.domain.repository.IColdChainOrderRepository;
 import com.ymm.coldchainai.shared.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections4.CollectionUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,21 +19,17 @@ import java.util.Objects;
 /**
  * 司机成交订单查询服务实现。
  *
- * <p>该类负责计算业务日期范围、调用订单Repository，
- * 并将订单领域对象转换成Application层摘要DTO。</p>
+ * <p>该类负责计算业务日期范围、调用订单Repository，并将订单领域对象转换成Application层摘要DTO。</p>
  *
  * <p>在挖矿流程中，该类相当于负责订单查询任务的项目经理：
- * 它把“查询某天订单”拆解成明确的开始时间、结束时间和数量限制，
- * 然后安排档案仓库查询，最后整理成可以交给Agent的摘要。</p>
+ * 它把“查询某天订单”拆解成明确的开始时间、结束时间和数量限制，然后安排档案仓库查询，最后整理成可以交给Agent的摘要。</p>
  *
  * <p><strong>产品需求提醒：</strong>
  * 当前按照dealTime判断订单在哪一天成交，并且不根据当前订单状态排除取消订单。
  * 该规则上线前必须由产品确认，不能把本示例规则直接当成真实生产规则。</p>
- *
- * <p>当前类暂时不添加@Service，因为MyBatis Repository实现将在下一小步创建。
- * 现在提前注册为Spring Bean会因为缺少IColdChainOrderRepository实现而导致项目无法启动。</p>
  */
-@RequiredArgsConstructor
+@Service
+@RequiredArgsConstructor(onConstructor_ = @Autowired)
 public class DriverOrderQueryServiceImpl implements IDriverOrderQueryService {
 
     /**
