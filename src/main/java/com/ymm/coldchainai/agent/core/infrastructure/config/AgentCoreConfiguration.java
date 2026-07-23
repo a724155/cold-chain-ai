@@ -5,6 +5,7 @@ import com.ymm.coldchainai.agent.core.infrastructure.advisor.AgentLifecycleLoggi
 import com.ymm.coldchainai.agent.core.infrastructure.advisor.ModelLifecycleLoggingAdvisor;
 import com.ymm.coldchainai.agent.core.infrastructure.springai.model.SpringAiAgentRuntime;
 import com.ymm.coldchainai.order.interfaces.tool.DriverOrderQueryTool;
+import com.ymm.coldchainai.payment.interfaces.tool.DepositPaymentQueryTool;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,18 +47,24 @@ public class AgentCoreConfiguration {
     private static final String COLD_CHAIN_GENERAL_AGENT_SYSTEM_PROMPT = """
         你是冷运 AI 系统的企业综合业务助手。
 
-        当前已经接入司机成交订单查询工具query_driver_deal_orders，
-        但尚未接入定金支付查询和公司业务规则知识检索工具。
+        当前已经接入以下真实业务工具：
+        1. query_driver_deal_orders：查询司机指定日期的成交订单。
+        2. query_order_deposit_payment：查询冷运订单最新的定金支付状态。
+
+        当前尚未接入公司业务规则知识库、退款查询和支付渠道主动查单工具。
 
         请遵守以下规则：
         1. 回答必须准确、清晰、简洁。
-        2. 用户询问指定司机今天或某天是否存在成交订单、成交了哪些订单时，必须调用query_driver_deal_orders工具。
-        3. 用户说“今天”时，调用订单工具可以省略queryDate，由工具按照冷运业务时区计算当前日期。
-        4. 订单事实必须以工具返回结果为准，不得根据常识、历史对话或示例订单号自行编造。
-        5. 工具返回hasDealOrder=false时，应明确告诉用户该日期没有查询到成交订单。
-        6. 工具返回success=false时，应根据errorMessage说明参数问题，不能伪造查询结果。
-        7. 用户询问支付或公司规则时，必须说明当前尚未接入对应工具。
-        8. 不确定的信息必须明确说明不确定，不能编造答案。
+        2. 用户询问指定司机今天或某天是否存在成交订单、成交了哪些订单时，必须调用query_driver_deal_orders。
+        3. 用户询问某订单是否支付定金、定金是否到账、支付中、支付超时、支付失败或尚未创建支付单时，必须调用query_order_deposit_payment。
+        4. 订单和支付事实必须以工具返回结果为准，禁止根据示例数据、常识或历史对话编造。
+        5. 支付Tool返回payOrderCreated=false时，应明确说明该订单尚未创建定金支付单，不能说成支付失败。
+        6. 支付Tool返回paid=true时，可以明确说明定金已经支付成功。
+        7. 支付Tool返回paying=true且expired=false时，应说明当前仍在支付处理中，最终结果尚未确认。
+        8. 支付Tool返回paying=true且expired=true时，应说明支付单已经超过失效时间但数据库状态仍为支付中，可能等待补偿关闭，不能声称支付成功。
+        9. Tool返回success=false时，应根据errorMessage说明参数问题，不能伪造业务结果。
+        10. 不得声称已经查询尚未接入的退款、支付渠道或公司知识库能力。
+        11. 不确定的信息必须明确说明不确定，不能编造答案。
         """;
 
     /**
@@ -74,26 +81,34 @@ public class AgentCoreConfiguration {
     /**
      * 创建冷运综合业务助手专属ChatClient。
      *
-     * <p>Agent生命周期和模型生命周期Advisor作为默认Advisor注册，
-     * 因此该ChatClient发起的每次请求都会自动经过两套日志链路。</p>
+     * <p>当前ChatClient绑定司机成交订单查询和定金支付查询两个Tool。
+     * 后续新增其他Agent时，需要根据Agent能力和权限边界独立绑定Tool，
+     * 不能把全部工具无条件暴露给所有Agent。</p>
+     *
+     * <p>在挖矿流程中，该方法相当于给综合矿区的智能挖掘机配置两台专业设备：
+     * 一台查询订单档案，一台查询财务收款单。缺少绑定时，模型只能知道工具存在于代码中，
+     * 却无法在实际任务中调用。</p>
      *
      * @param chatClientBuilder Spring AI自动配置的ChatClient构建器
      * @param agentLifecycleLoggingAdvisor Agent完整调用链日志Advisor
      * @param modelLifecycleLoggingAdvisor 单次模型调用日志Advisor
      * @param driverOrderQueryTool 司机成交订单查询Tool
-     * @return 设置系统提示词和默认Advisor的ChatClient
+     * @param depositPaymentQueryTool 订单定金支付查询Tool
+     * @return 综合业务助手专属ChatClient
      */
     @Bean
     public ChatClient coldChainGeneralChatClient(ChatClient.Builder chatClientBuilder, AgentLifecycleLoggingAdvisor agentLifecycleLoggingAdvisor,
                                                  ModelLifecycleLoggingAdvisor modelLifecycleLoggingAdvisor,
-                                                 DriverOrderQueryTool driverOrderQueryTool) {
+                                                 DriverOrderQueryTool driverOrderQueryTool,
+                                                 DepositPaymentQueryTool depositPaymentQueryTool) {
         /*
-         * defaultAdvisors会将Advisor注册为当前ChatClient的默认执行链。
-         * 后续每次调用不需要重复传入Advisor实例，只需要传入requestId、agentCode等动态上下文参数。
+         * defaultTools注册后，这两个Tool会成为cold-chain-general的默认能力。
+         * 当前ChatClient每次请求都可以由模型根据问题选择是否调用其中一个Tool。
          */
-        return chatClientBuilder.defaultSystem(COLD_CHAIN_GENERAL_AGENT_SYSTEM_PROMPT)
+        return chatClientBuilder
+                .defaultSystem(COLD_CHAIN_GENERAL_AGENT_SYSTEM_PROMPT)
                 .defaultAdvisors(agentLifecycleLoggingAdvisor, modelLifecycleLoggingAdvisor)
-                .defaultTools(driverOrderQueryTool)
+                .defaultTools(driverOrderQueryTool, depositPaymentQueryTool)
                 .build();
     }
 

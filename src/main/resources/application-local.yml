@@ -13,6 +13,10 @@ spring:
     password: 123456
 
   ai:
+    tools:
+      # Tool内部发生未处理的系统异常时向调用方抛出，避免模型把数据库或权限故障解释成正常业务结果。
+      throw-exception-on-error: true
+
     # 明确指定当前项目使用 OpenAI 协议的 ChatModel 自动配置。
     model:
       chat: openai
