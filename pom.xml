@@ -147,6 +147,16 @@
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
+        <!--
+            Spring AI PDF文档读取模块。
+            RAG入库前先使用它把PDF转换成Spring AI Document，
+            后续再进行文本切片、Embedding生成和VectorStore入库。
+-->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-pdf-document-reader</artifactId>
+        </dependency>
+
         <!-- 新版lang3包 -->
         <dependency>
             <groupId>org.apache.commons</groupId>
