@@ -65,3 +65,36 @@ cold-chain-ai:
 
       # 本地开发环境模拟的已认证租户ID，与订单演示数据中的tenant_id保持一致。
       current-tenant-id: ${LOCAL_CURRENT_TENANT_ID:1001}
+
+  rag:
+    internal-rule:
+      # 满帮内部规范PDF在classpath中的位置。
+      resource-location: classpath:/rag/documents/mmb-internal-rules.pdf
+
+      # 稳定文档编码，后续会写入VectorStore metadata，用于文档版本管理和过滤。
+      document-code: mmb-internal-rules
+
+      # 文档展示名称。
+      document-name: 满帮集团内部规范文档
+
+      # 当前文档版本。
+      document-version: V1.0
+
+      # PDF先按照物理页转换成Document，再继续进行Token切片。
+      pages-per-document: 1
+
+      # 每个Chunk目标Token数量。
+      # 当前文档很短，使用180可以把考勤、资产、Git、事故规范拆得相对细一些。
+      chunk-size: 180
+
+      # 太短的文本块不单独形成知识Chunk，避免产生大量无意义碎片。
+      min-chunk-size-chars: 60
+
+      # 小于该字符长度的Chunk不进入后续Embedding流程。
+      min-chunk-length-to-embed: 20
+
+      # 单个文档允许生成的最大Chunk数量，防止异常PDF产生海量切片。
+      max-num-chunks: 200
+
+      # 切片时保留分隔符，尽量保留原文语义结构。
+      keep-separator: true
