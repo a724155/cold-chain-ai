@@ -32,7 +32,12 @@ public enum RagErrorCodeEnum implements IErrorCode {
     /**
      * PostgreSQL连接或者PGVector基础设施初始化失败。
      */
-    RAG_VECTOR_STORE_INITIALIZATION_ERROR(53003, "RAG向量存储初始化失败");
+    RAG_VECTOR_STORE_INITIALIZATION_ERROR(53003, "RAG向量存储初始化失败"),
+
+    /**
+     * PDF Chunk生成Embedding或者写入PGVector过程中发生异常。
+     */
+    RAG_KNOWLEDGE_INDEX_ERROR(53004, "RAG知识索引构建失败");
 
     /**
      * RAG模块错误编码。
