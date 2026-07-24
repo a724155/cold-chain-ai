@@ -151,10 +151,28 @@
             Spring AI PDF文档读取模块。
             RAG入库前先使用它把PDF转换成Spring AI Document，
             后续再进行文本切片、Embedding生成和VectorStore入库。
--->
+        -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-pdf-document-reader</artifactId>
+        </dependency>
+
+        <!--
+            Spring AI PGVector实现。
+            当前项目已经使用MySQL保存订单、支付和Agent执行记录，
+            因此这里不使用PGVector自动配置接管spring.datasource，
+            而是在代码中为RAG单独创建PostgreSQL DataSource和VectorStore。
+        -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-pgvector-store</artifactId>
+        </dependency>
+
+        <!-- PostgreSQL JDBC驱动，只服务于RAG PGVector数据源。 -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- 新版lang3包 -->

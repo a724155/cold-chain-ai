@@ -40,6 +40,21 @@ spring:
         # 较低温度让订单、支付和规则问答更加稳定，减少随机发挥。
         temperature: 0.2
 
+      embedding:
+        # RAG文本向量化模型。
+        # PDF切片之后，每一个Document Chunk都会通过该模型转换成Embedding向量。
+        model: text-embedding-v4
+
+        # 每个Chunk最终生成1024维向量。
+        # 这个值必须与后面PGVector表embedding字段的维度完全一致，
+        # 否则写入向量数据库时会因为维度不匹配直接失败。
+        dimensions: 1024
+
+        # 要求Embedding接口返回浮点数向量。
+        # PGVector最终存储的就是这一组浮点特征数据，而不是base64字符串。
+        encoding-format: float
+
+
 logging:
   level:
     # 项目自身代码默认输出 INFO 级别日志。
@@ -98,3 +113,32 @@ cold-chain-ai:
 
       # 切片时保留分隔符，尽量保留原文语义结构。
       keep-separator: true
+
+    pgvector:
+      # RAG专用阿里云RDS PostgreSQL地址。注意这里不是业务MySQL，也不是默认postgres数据库，
+      # 最终JDBC URL必须明确连接cold_chain_ai_rag数据库。
+      jdbc-url: jdbc:postgresql://rm-cn-zqx4vtv520001rbo.rwlb.rds.aliyuncs.com:5432/cold_chain_ai_rag
+
+      # RAG PostgreSQL账号从IDEA环境变量读取。
+      username: cold_chain_ai_rag_admin
+
+      # 数据库密码属于敏感配置，只允许从环境变量读取，禁止写死到Git仓库。
+      password: ${RAG_PGVECTOR_PASSWORD}
+
+      # 当前使用PostgreSQL默认public Schema。
+      schema-name: public
+
+      # Spring AI后续创建的内部规范向量表名称。
+      table-name: internal_rule_vector_store
+
+      # PGVector embedding列维度。
+      # 必须和text-embedding-v4实际返回的1024维完全一致。
+      dimensions: 1024
+
+      # 允许Spring AI首次构建VectorStore时初始化表结构和向量索引。
+      # 你已经提前安装vector、hstore、uuid-ossp，所以扩展依赖已经准备完成。
+      initialize-schema: true
+
+      # text-embedding-v4的OpenAI兼容接口单次最多接收10条文本，
+      # 因此这里把单批Document数量限制为10，避免后续文档增多后一次提交过多Chunk导致Embedding接口拒绝请求。
+      max-document-batch-size: 10
