@@ -1,13 +1,20 @@
 package com.ymm.coldchainai.rag.knowledge.interfaces.web;
 
 import com.ymm.coldchainai.rag.knowledge.application.dto.InternalRuleKnowledgeIndexDTO;
+import com.ymm.coldchainai.rag.knowledge.application.dto.InternalRuleKnowledgeSearchDTO;
+import com.ymm.coldchainai.rag.knowledge.application.model.InternalRuleKnowledgeSearchQuery;
 import com.ymm.coldchainai.rag.knowledge.application.service.IInternalRuleKnowledgeIndexService;
+import com.ymm.coldchainai.rag.knowledge.application.service.IInternalRuleKnowledgeSearchService;
+import com.ymm.coldchainai.rag.knowledge.interfaces.web.request.InternalRuleKnowledgeSearchRequest;
 import com.ymm.coldchainai.rag.knowledge.interfaces.web.response.InternalRuleKnowledgeIndexResponse;
+import com.ymm.coldchainai.rag.knowledge.interfaces.web.response.InternalRuleKnowledgeSearchResponse;
 import com.ymm.coldchainai.shared.response.YmmResult;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,6 +39,11 @@ public class InternalRuleKnowledgeVerificationController {
     private final IInternalRuleKnowledgeIndexService internalRuleKnowledgeIndexService;
 
     /**
+     * 内部规范向量知识检索服务。
+     */
+    private final IInternalRuleKnowledgeSearchService internalRuleKnowledgeSearchService;
+
+    /**
      * 重新建立满帮内部规范向量索引。
      *
      * @return 本次知识索引构建结果
@@ -46,6 +58,29 @@ public class InternalRuleKnowledgeVerificationController {
                 indexDTO.getDocumentCode(),
                 indexDTO.getDocumentVersion(),
                 indexDTO.getChunkCount());
+
+        return YmmResult.success(response);
+    }
+
+    /**
+     * 根据自然语言问题检索最相关的内部规范Chunk。
+     *
+     * <p>当前接口只验证Retrieval阶段，不调用ChatModel，
+     * 因此返回结果就是PGVector真实召回的知识原文和相似度Score。</p>
+     *
+     * @param request 内部规范检索请求
+     * @return 按相似度排序的知识Chunk
+     */
+    @PostMapping("/search")
+    public YmmResult<InternalRuleKnowledgeSearchResponse> search(@Valid @RequestBody InternalRuleKnowledgeSearchRequest request) {
+        // Controller把HTTP请求转换成Application层标准查询对象。
+        InternalRuleKnowledgeSearchQuery searchQuery = InternalRuleKnowledgeSearchQuery.create(request.getQuery());
+
+        // Application Service执行问题Embedding和PGVector相似度查询。
+        InternalRuleKnowledgeSearchDTO searchDTO = internalRuleKnowledgeSearchService.search(searchQuery);
+
+        // 将Application DTO转换成local验证接口响应。
+        InternalRuleKnowledgeSearchResponse response = InternalRuleKnowledgeSearchResponse.fromDTO(searchDTO);
 
         return YmmResult.success(response);
     }

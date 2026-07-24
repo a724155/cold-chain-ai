@@ -15,6 +15,11 @@ import lombok.Getter;
 public enum RagErrorCodeEnum implements IErrorCode {
 
     /**
+     * RAG知识检索请求参数不符合业务要求。
+     */
+    RAG_KNOWLEDGE_SEARCH_PARAMETER_ERROR(43000, "RAG知识检索参数错误"),
+
+    /**
      * RAG文档读取或切片相关配置不合法。
      */
     RAG_DOCUMENT_CONFIGURATION_ERROR(53000, "RAG文档配置错误"),
@@ -37,7 +42,12 @@ public enum RagErrorCodeEnum implements IErrorCode {
     /**
      * PDF Chunk生成Embedding或者写入PGVector过程中发生异常。
      */
-    RAG_KNOWLEDGE_INDEX_ERROR(53004, "RAG知识索引构建失败");
+    RAG_KNOWLEDGE_INDEX_ERROR(53004, "RAG知识索引构建失败"),
+
+    /**
+     * 用户问题生成Embedding或者执行PGVector相似度检索时发生异常。
+     */
+    RAG_KNOWLEDGE_SEARCH_ERROR(53005, "RAG知识检索失败");
 
     /**
      * RAG模块错误编码。
