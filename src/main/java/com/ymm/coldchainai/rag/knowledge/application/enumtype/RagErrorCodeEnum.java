@@ -20,6 +20,11 @@ public enum RagErrorCodeEnum implements IErrorCode {
     RAG_KNOWLEDGE_SEARCH_PARAMETER_ERROR(43000, "RAG知识检索参数错误"),
 
     /**
+     * 内部规范RAG问答参数不符合要求。
+     */
+    RAG_KNOWLEDGE_ANSWER_PARAMETER_ERROR(43001, "RAG知识问答参数错误"),
+
+    /**
      * RAG文档读取或切片相关配置不合法。
      */
     RAG_DOCUMENT_CONFIGURATION_ERROR(53000, "RAG文档配置错误"),
@@ -47,7 +52,12 @@ public enum RagErrorCodeEnum implements IErrorCode {
     /**
      * 用户问题生成Embedding或者执行PGVector相似度检索时发生异常。
      */
-    RAG_KNOWLEDGE_SEARCH_ERROR(53005, "RAG知识检索失败");
+    RAG_KNOWLEDGE_SEARCH_ERROR(53005, "RAG知识检索失败"),
+
+    /**
+     * 已完成知识检索，但调用ChatModel生成RAG答案过程中发生异常。
+     */
+    RAG_KNOWLEDGE_ANSWER_ERROR(53006, "RAG知识问答失败");
 
     /**
      * RAG模块错误编码。

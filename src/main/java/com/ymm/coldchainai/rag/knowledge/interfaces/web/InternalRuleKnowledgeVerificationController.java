@@ -1,11 +1,16 @@
 package com.ymm.coldchainai.rag.knowledge.interfaces.web;
 
+import com.ymm.coldchainai.rag.knowledge.application.dto.InternalRuleKnowledgeAnswerDTO;
 import com.ymm.coldchainai.rag.knowledge.application.dto.InternalRuleKnowledgeIndexDTO;
 import com.ymm.coldchainai.rag.knowledge.application.dto.InternalRuleKnowledgeSearchDTO;
+import com.ymm.coldchainai.rag.knowledge.application.model.InternalRuleKnowledgeAnswerQuery;
 import com.ymm.coldchainai.rag.knowledge.application.model.InternalRuleKnowledgeSearchQuery;
+import com.ymm.coldchainai.rag.knowledge.application.service.IInternalRuleKnowledgeAnswerService;
 import com.ymm.coldchainai.rag.knowledge.application.service.IInternalRuleKnowledgeIndexService;
 import com.ymm.coldchainai.rag.knowledge.application.service.IInternalRuleKnowledgeSearchService;
+import com.ymm.coldchainai.rag.knowledge.interfaces.web.request.InternalRuleKnowledgeAnswerRequest;
 import com.ymm.coldchainai.rag.knowledge.interfaces.web.request.InternalRuleKnowledgeSearchRequest;
+import com.ymm.coldchainai.rag.knowledge.interfaces.web.response.InternalRuleKnowledgeAnswerResponse;
 import com.ymm.coldchainai.rag.knowledge.interfaces.web.response.InternalRuleKnowledgeIndexResponse;
 import com.ymm.coldchainai.rag.knowledge.interfaces.web.response.InternalRuleKnowledgeSearchResponse;
 import com.ymm.coldchainai.shared.response.YmmResult;
@@ -42,6 +47,11 @@ public class InternalRuleKnowledgeVerificationController {
      * 内部规范向量知识检索服务。
      */
     private final IInternalRuleKnowledgeSearchService internalRuleKnowledgeSearchService;
+
+    /**
+     * 内部规范RAG问答服务。
+     */
+    private final IInternalRuleKnowledgeAnswerService internalRuleKnowledgeAnswerService;
 
     /**
      * 重新建立满帮内部规范向量索引。
@@ -81,6 +91,29 @@ public class InternalRuleKnowledgeVerificationController {
 
         // 将Application DTO转换成local验证接口响应。
         InternalRuleKnowledgeSearchResponse response = InternalRuleKnowledgeSearchResponse.fromDTO(searchDTO);
+
+        return YmmResult.success(response);
+    }
+
+    /**
+     * 根据满帮内部规范知识库回答自然语言问题。
+     *
+     * <p>该接口会完成PGVector Retrieval以及ChatModel生成，
+     * 用于验证完整RAG链路是否能够严格按照PDF内容回答。</p>
+     *
+     * @param request 内部规范问答请求
+     * @return RAG最终答案
+     */
+    @PostMapping("/answer")
+    public YmmResult<InternalRuleKnowledgeAnswerResponse> answer(@Valid @RequestBody InternalRuleKnowledgeAnswerRequest request) {
+        // 将HTTP请求转换成Application层标准问答对象。
+        InternalRuleKnowledgeAnswerQuery answerQuery = InternalRuleKnowledgeAnswerQuery.create(request.getQuestion());
+
+        // Application Service通过QuestionAnswerAdvisor执行检索增强生成。
+        InternalRuleKnowledgeAnswerDTO answerDTO = internalRuleKnowledgeAnswerService.answer(answerQuery);
+
+        // Response转换方法自身负责DTO空值防御。
+        InternalRuleKnowledgeAnswerResponse response = InternalRuleKnowledgeAnswerResponse.fromDTO(answerDTO);
 
         return YmmResult.success(response);
     }

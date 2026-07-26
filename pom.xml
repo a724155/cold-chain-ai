@@ -168,6 +168,17 @@
             <artifactId>spring-ai-pgvector-store</artifactId>
         </dependency>
 
+        <!--
+            Spring AI VectorStore Advisor。
+            QuestionAnswerAdvisor会在调用ChatModel之前自动执行向量检索，
+            将PGVector召回的Document Chunk作为知识上下文补充到Prompt中，
+            从而实现最基础且标准的RAG问答流程。
+        -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-vector-store-advisor</artifactId>
+        </dependency>
+
         <!-- PostgreSQL JDBC驱动，只服务于RAG PGVector数据源。 -->
         <dependency>
             <groupId>org.postgresql</groupId>
