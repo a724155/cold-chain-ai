@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ymm.coldchainai.agent.conversation.infrastructure.persistence.mapper.IAgentConversationMapper">
+
+    <!-- Agent会话数据库字段映射 -->
+    <resultMap id="AgentConversationResultMap" type="com.ymm.coldchainai.agent.conversation.infrastructure.persistence.dataobject.AgentConversationDO">
+
+        <id property="id" column="id"/>
+
+        <result property="conversationId" column="conversation_id"/>
+        <result property="currentUserId" column="current_user_id"/>
+        <result property="currentTenantId" column="current_tenant_id"/>
+        <result property="agentCode" column="agent_code"/>
+        <result property="conversationTitle" column="conversation_title"/>
+        <result property="conversationStatus" column="conversation_status"/>
+        <result property="messageCount" column="message_count"/>
+        <result property="lastMessageTime" column="last_message_time"/>
+        <result property="version" column="version"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+
+    </resultMap>
+
+    <!-- Conversation公共查询字段，避免不同SQL重复维护相同列名 -->
+    <sql id="BaseColumnList">
+        id,
+        conversation_id,
+        current_user_id,
+        current_tenant_id,
+        agent_code,
+        conversation_title,
+        conversation_status,
+        message_count,
+        last_message_time,
+        version,
+        create_time,
+        update_time
+    </sql>
+
+    <!-- 创建新的Agent会话 -->
+    <insert id="insert"
+            parameterType="com.ymm.coldchainai.agent.conversation.infrastructure.persistence.dataobject.AgentConversationDO"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO cold_chain_ai_conversation
+        (
+        conversation_id,
+        current_user_id,
+        current_tenant_id,
+        agent_code,
+        conversation_title,
+        conversation_status,
+        message_count,
+        last_message_time,
+        version
+        )
+        VALUES
+        (
+        #{conversationId},
+        #{currentUserId},
+        #{currentTenantId},
+        #{agentCode},
+        #{conversationTitle},
+        #{conversationStatus},
+        #{messageCount},
+        #{lastMessageTime},
+        #{version}
+        )
+
+    </insert>
+
+    <!--
+        根据会话业务ID和调用者身份共同查询Conversation。
+        current_user_id和current_tenant_id属于数据权限条件，不能删除。
+    -->
+    <select id="selectByConversationIdAndOwner" resultMap="AgentConversationResultMap">
+
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM cold_chain_ai_conversation
+        WHERE conversation_id = #{conversationId}
+        AND current_user_id = #{currentUserId}
+        AND current_tenant_id = #{currentTenantId}
+        LIMIT 1
+
+    </select>
+
+</mapper>
