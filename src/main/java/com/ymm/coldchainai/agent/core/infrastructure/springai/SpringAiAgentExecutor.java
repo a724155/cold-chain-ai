@@ -168,6 +168,11 @@ public class SpringAiAgentExecutor implements IAgentExecutor {
             throw new IllegalArgumentException(AGENT_DEFINITION_IS_NULL_MESSAGE);
         }
 
+        if (Objects.isNull(agentInvocationContext)) {
+            // 调用上下文承载受信任用户和租户信息，为空时Tool无法安全获得调用者身份。
+            throw new IllegalArgumentException(AGENT_INVOCATION_CONTEXT_IS_NULL_MESSAGE);
+        }
+
         if (StringUtils.isBlank(question)) {
             // Application Service 正常情况下已经完成校验，此处再次防御内部错误调用。
             throw new IllegalArgumentException(QUESTION_IS_BLANK_MESSAGE);

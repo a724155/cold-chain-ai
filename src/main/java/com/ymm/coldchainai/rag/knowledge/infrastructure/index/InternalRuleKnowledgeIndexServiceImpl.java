@@ -61,13 +61,20 @@ public class InternalRuleKnowledgeIndexServiceImpl implements IInternalRuleKnowl
      */
     @Override
     public InternalRuleKnowledgeIndexDTO rebuildIndex() {
-        /*
-         * 第一步只负责读取PDF并切片。
-         * 此时Document中已经包含正文以及documentCode、version、chunkIndex等Metadata，
-         * 但还没有调用远程Embedding模型。
-         */
-        List<Document> chunkDocumentList = internalRulePdfDocumentLoader.loadAndSplitDocumentList();
+        List<Document> chunkDocumentList;
 
+        try {
+            /*
+             * 第一阶段先读取PDF并完成Chunk切分。
+             * PDF资源不存在、PDF解析失败或者TokenTextSplitter异常都统一包装成RAG知识索引异常，
+             * 但此时绝不能访问VectorStore，更不能删除现有知识。
+             */
+            chunkDocumentList = internalRulePdfDocumentLoader.loadAndSplitDocumentList();
+        } catch (Exception exception) {
+            throw createKnowledgeIndexException("读取内部规范PDF或者执行Chunk切分失败", exception);
+        }
+
+        // null List和empty List都表示没有生成任何可用于Embedding的新知识。此时必须立即结束重建，不能继续删除PGVector中的旧索引。
         if (CollectionUtils.isEmpty(chunkDocumentList)) {
             throw createKnowledgeIndexException("内部规范PDF没有生成可用于向量化的Chunk", null);
         }
