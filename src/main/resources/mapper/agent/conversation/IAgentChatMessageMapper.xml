@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ymm.coldchainai.agent.conversation.infrastructure.persistence.mapper.IAgentChatMessageMapper">
+
+    <!--
+        Agent聊天消息数据库字段映射。
+
+        数据库保存的是message_role整数编码，
+        Repository恢复领域模型时再通过ChatMessageRoleEnum.fromCode()转换为USER或者ASSISTANT枚举。
+    -->
+    <resultMap id="AgentChatMessageResultMap"
+               type="com.ymm.coldchainai.agent.conversation.infrastructure.persistence.dataobject.AgentChatMessageDO">
+
+        <id property="id" column="id"/>
+
+        <result property="messageId" column="message_id"/>
+        <result property="conversationId" column="conversation_id"/>
+        <result property="currentUserId" column="current_user_id"/>
+        <result property="currentTenantId" column="current_tenant_id"/>
+        <result property="requestId" column="request_id"/>
+        <result property="messageRole" column="message_role"/>
+        <result property="messageContent" column="message_content"/>
+        <result property="sequenceNo" column="sequence_no"/>
+        <result property="createTime" column="create_time"/>
+
+    </resultMap>
+
+    <!--
+        ChatMessage公共查询列。
+
+        后续新增查询SQL时统一复用该字段列表，
+        避免数据库增加字段后多个SELECT遗漏维护。
+    -->
+    <sql id="BaseColumnList">
+        id,
+        message_id,
+        conversation_id,
+        current_user_id,
+        current_tenant_id,
+        request_id,
+        message_role,
+        message_content,
+        sequence_no,
+        create_time
+    </sql>
+
+    <!--
+        保存一条USER问题或者ASSISTANT回答。
+
+        message_id由Application层生成；
+        sequence_no由锁定Conversation后基于最新message_count计算；
+        current_user_id和current_tenant_id来自受信任认证上下文，不接受前端伪造。
+    -->
+    <insert id="insert"
+            parameterType="com.ymm.coldchainai.agent.conversation.infrastructure.persistence.dataobject.AgentChatMessageDO"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO cold_chain_ai_chat_message
+        (
+        message_id,
+        conversation_id,
+        current_user_id,
+        current_tenant_id,
+        request_id,
+        message_role,
+        message_content,
+        sequence_no,
+        create_time
+        )
+        VALUES
+        (
+        #{messageId},
+        #{conversationId},
+        #{currentUserId},
+        #{currentTenantId},
+        #{requestId},
+        #{messageRole},
+        #{messageContent},
+        #{sequenceNo},
+        #{createTime}
+        )
+
+    </insert>
+
+    <!--
+        查询当前用户和租户拥有的Conversation最近limit条消息。
+
+        内层查询：
+        1. 使用conversation_id定位会话；
+        2. 使用current_user_id和current_tenant_id完成数据权限隔离；
+        3. 按sequence_no倒序排列；
+        4. LIMIT截取最近若干条消息。
+
+        外层查询：
+        将最近消息重新按sequence_no升序排列，
+        保证最终返回给Application和Chat Memory的顺序仍然是：
+        USER问题 → ASSISTANT回答 → 下一轮USER问题 → 下一轮ASSISTANT回答。
+    -->
+    <select id="selectRecentByConversationIdAndOwner" resultMap="AgentChatMessageResultMap">
+
+        SELECT
+        recent_message.id,
+        recent_message.message_id,
+        recent_message.conversation_id,
+        recent_message.current_user_id,
+        recent_message.current_tenant_id,
+        recent_message.request_id,
+        recent_message.message_role,
+        recent_message.message_content,
+        recent_message.sequence_no,
+        recent_message.create_time
+        FROM
+        (
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM cold_chain_ai_chat_message
+        WHERE conversation_id = #{conversationId}
+        AND current_user_id = #{currentUserId}
+        AND current_tenant_id = #{currentTenantId}
+        ORDER BY sequence_no DESC
+        LIMIT #{limit}
+        ) recent_message
+        ORDER BY recent_message.sequence_no ASC
+
+    </select>
+
+</mapper>

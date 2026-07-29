@@ -72,8 +72,7 @@
     </insert>
 
     <!--
-        根据会话业务ID和调用者身份共同查询Conversation。
-        current_user_id和current_tenant_id属于数据权限条件，不能删除。
+        根据会话业务ID和调用者身份共同查询Conversation。current_user_id和current_tenant_id属于数据权限条件，不能删除。
     -->
     <select id="selectByConversationIdAndOwner" resultMap="AgentConversationResultMap">
 
@@ -86,5 +85,66 @@
         LIMIT 1
 
     </select>
+
+    <!--
+    根据conversation_id、current_user_id和current_tenant_id加悲观锁查询Conversation。
+
+    该SQL用于向同一个Conversation追加ChatMessage前读取最新message_count和version。
+    FOR UPDATE会锁定当前查询命中的Conversation记录，避免多个并发请求同时读取到相同message_count，
+    从而生成重复的sequence_no。
+
+    FOR UPDATE锁不会在当前select语句执行完后立即释放。
+    在正确使用Spring @Transactional的情况下，锁会一直保持到外围事务提交或者回滚。
+
+    完整事务链路应该是：
+    1. SELECT ... FOR UPDATE锁住Conversation；
+    2. 根据message_count计算下一条ChatMessage的sequence_no；
+    3. INSERT聊天消息；
+    4. UPDATE Conversation的message_count、last_message_time和version；
+    5. 事务提交后释放行锁。
+
+    current_user_id和current_tenant_id属于数据权限条件，禁止删除，
+    避免只拿到conversation_id的其他用户锁定或者操作不属于自己的Conversation。
+    -->
+    <select id="selectByConversationIdAndOwnerForUpdate" resultMap="AgentConversationResultMap">
+
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM cold_chain_ai_conversation
+        WHERE conversation_id = #{conversationId}
+        AND current_user_id = #{currentUserId}
+        AND current_tenant_id = #{currentTenantId}
+        LIMIT 1
+        FOR UPDATE
+
+    </select>
+
+    <!--
+    更新Conversation累计消息数量和最近消息时间。
+
+    message_count和last_message_time由AgentConversation领域模型计算，
+    Mapper只负责将领域对象的最新状态写入数据库。
+
+    version是乐观锁条件：
+    - WHERE version = #{version}：要求数据库版本仍然等于查询时版本；
+    - SET version = version + 1：更新成功后数据库版本递增。
+
+    即使未来某段代码错误地绕过SELECT FOR UPDATE，
+    version也能避免旧数据直接覆盖其他线程已经提交的新状态。
+    -->
+    <update id="updateMessageStatistics"
+            parameterType="com.ymm.coldchainai.agent.conversation.infrastructure.persistence.dataobject.AgentConversationDO">
+
+        UPDATE cold_chain_ai_conversation
+        SET message_count = #{messageCount},
+        last_message_time = #{lastMessageTime},
+        version = version + 1
+        WHERE id = #{id}
+        AND conversation_id = #{conversationId}
+        AND current_user_id = #{currentUserId}
+        AND current_tenant_id = #{currentTenantId}
+        AND version = #{version}
+
+    </update>
 
 </mapper>
