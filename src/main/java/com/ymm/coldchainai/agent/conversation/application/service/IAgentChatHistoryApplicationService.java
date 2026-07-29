@@ -1,6 +1,8 @@
 package com.ymm.coldchainai.agent.conversation.application.service;
 
 import com.ymm.coldchainai.agent.conversation.application.command.AppendAgentChatMessageCommand;
+import com.ymm.coldchainai.agent.conversation.application.command.QueryAgentChatHistoryCommand;
+import com.ymm.coldchainai.agent.conversation.application.dto.AgentChatHistoryDTO;
 import com.ymm.coldchainai.agent.conversation.application.dto.AgentChatMessageDTO;
 
 /**
@@ -22,4 +24,18 @@ public interface IAgentChatHistoryApplicationService {
      * @return 已成功持久化的聊天消息
      */
     AgentChatMessageDTO appendMessage(AppendAgentChatMessageCommand command);
+
+    /**
+     * 查询指定Conversation最近若干条聊天消息。
+     *
+     * <p>该方法只执行读取，不分配sequenceNo、不修改messageCount，
+     * 因此不需要对Conversation执行SELECT ... FOR UPDATE。</p>
+     *
+     * <p>在挖矿流程中，该操作只是调阅已经归档的项目记录，
+     * 不会新增或者修改档案，因此无需锁住项目总任务单。</p>
+     *
+     * @param command 查询聊天历史Application命令
+     * @return 按sequenceNo升序排列的最近聊天历史
+     */
+    AgentChatHistoryDTO listRecentMessages(QueryAgentChatHistoryCommand command);
 }

@@ -1,6 +1,8 @@
 package com.ymm.coldchainai.agent.conversation.application.service.impl;
 
 import com.ymm.coldchainai.agent.conversation.application.command.AppendAgentChatMessageCommand;
+import com.ymm.coldchainai.agent.conversation.application.command.QueryAgentChatHistoryCommand;
+import com.ymm.coldchainai.agent.conversation.application.dto.AgentChatHistoryDTO;
 import com.ymm.coldchainai.agent.conversation.application.dto.AgentChatMessageDTO;
 import com.ymm.coldchainai.agent.conversation.application.enumtype.ConversationErrorCodeEnum;
 import com.ymm.coldchainai.agent.conversation.application.service.IAgentChatHistoryApplicationService;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -168,6 +171,70 @@ public class AgentChatHistoryApplicationServiceImpl implements IAgentChatHistory
 
         return AgentChatMessageDTO.fromDomain(chatMessage);
     }
+
+    /**
+     * 查询指定Conversation最近若干条聊天消息。
+     *
+     * <p>该方法使用只读事务，主要作用是明确当前调用不会执行数据修改，
+     * 并让Conversation所有权校验和ChatMessage查询处于同一个数据库读取上下文中。</p>
+     *
+     * <p>这里不能使用SELECT ... FOR UPDATE：</p>
+     *
+     * <p>1. 当前流程没有“读取后修改”行为；</p>
+     * <p>2. 不需要分配新的sequenceNo；</p>
+     * <p>3. 不修改messageCount、lastMessageTime和version；</p>
+     * <p>4. 加锁只会阻塞正在向同一Conversation追加消息的请求。</p>
+     *
+     * <p>与订单场景对比：</p>
+     *
+     * <p>普通订单详情查询不会加锁，只有读取订单状态后准备执行支付回调、
+     * 状态流转或者防重复处理时才使用FOR UPDATE。</p>
+     *
+     * <p>同理，Chat History查询只是读取档案，不加锁；
+     * 只有追加消息并计算sequenceNo时才锁定Conversation。</p>
+     *
+     * <p>在挖矿流程中，该方法相当于档案管理员复印最近若干条项目记录：
+     * 复印不会修改原始任务单，因此不需要阻止其他工作人员继续登记新的作业记录。</p>
+     *
+     * @param command 查询聊天历史Application命令
+     * @return 按sequenceNo升序排列的最近聊天历史
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public AgentChatHistoryDTO listRecentMessages(QueryAgentChatHistoryCommand command) {
+        if (Objects.isNull(command)) {
+            throw new IllegalArgumentException("查询Agent聊天历史命令不能为空");
+        }
+
+        AgentInvocationContext invocationContext = command.getAgentInvocationContext();
+
+        if (Objects.isNull(invocationContext)) {
+            throw new IllegalArgumentException("Agent调用上下文不能为空");
+        }
+
+        /*
+         * 先使用conversationId、currentUserId和currentTenantId查询Conversation，目的是确认当前调用者确实拥有这个聊天窗口。
+         * 不能只查询ChatMessage并在结果为空时直接返回空列表，因为空列表无法区分“Conversation存在但还没有消息”和
+         * “Conversation不存在或者属于其他用户”。
+         */
+        Optional<AgentConversation> conversationOptional = agentConversationRepository.findByConversationIdAndOwner(
+                        command.getConversationId(), invocationContext.getCurrentUserId(), invocationContext.getCurrentTenantId());
+
+        // 不存在和无权访问统一返回相同错误。系统不能向调用者泄露某个conversationId真实存在但属于其他用户。
+        if (conversationOptional.isEmpty()) {
+            throw new BusinessException(ConversationErrorCodeEnum.CONVERSATION_NOT_FOUND, "指定Agent会话不存在或者当前用户无权访问");
+        }
+
+        AgentConversation conversation = conversationOptional.get();
+
+        // 已关闭Conversation仍然允许查询历史。CLOSED只禁止追加新消息，不代表历史记录应该被删除或者禁止查看。
+        List<AgentChatMessage> chatMessageList = agentChatMessageRepository.listRecentMessages(
+                conversation.getConversationId(), conversation.getCurrentUserId(),
+                conversation.getCurrentTenantId(), command.getLimit());
+
+        return AgentChatHistoryDTO.fromDomainList(conversation.getConversationId(), chatMessageList);
+    }
+
 
     /**
      * 生成不可预测的ChatMessage业务唯一标识。
