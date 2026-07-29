@@ -242,6 +242,45 @@ public class AgentConversation {
     }
 
     /**
+     * 计算当前Conversation下一条ChatMessage应使用的顺序号。
+     *
+     * <p>该方法必须在Conversation已经通过SELECT ... FOR UPDATE加锁后调用。
+     * messageCount表示当前已经成功持久化的消息数量，因此下一条消息的sequenceNo等于messageCount + 1。</p>
+     *
+     * <p>不能简单执行SELECT MAX(sequence_no) + 1：
+     * 一方面每次都需要扫描或者查询消息表；
+     * 另一方面同一Conversation发生并发请求时，两个事务可能同时读取到相同MAX值，
+     * 从而生成重复sequenceNo。</p>
+     *
+     * <p>当前实现通过锁定Conversation主记录，将同一会话的“读取messageCount → 生成sequenceNo
+     * → 保存消息 → 更新messageCount”串行化，避免uk_conversation_sequence唯一索引冲突。</p>
+     *
+     * <p>这与订单场景中的SELECT ... FOR UPDATE原理相同：
+     * 都是在一个本地事务中保护“先读取、再判断、最后更新”的读后写链路。
+     * 区别是订单加锁通常保护订单状态流转、防止重复支付处理、重复扣减或者资损；
+     * Conversation加锁主要保护ChatMessage顺序号和messageCount统计一致性。</p>
+     *
+     * <p>在挖矿流程中，这相当于档案管理员锁定项目总任务单后，
+     * 根据任务单上已有作业记录数量分配下一张记录编号，避免两个工作人员同时拿到同一个编号。</p>
+     *
+     * @return 下一条消息在当前Conversation中的顺序号
+     */
+    public Integer calculateNextMessageSequenceNo() {
+        if (!isActive()) {
+            throw new IllegalStateException("已关闭会话不能继续追加消息");
+        }
+
+        // 历史异常数据出现null时按0处理，但负数说明数据库数据已经损坏，必须立即暴露。
+        int currentMessageCount = Objects.isNull(messageCount) ? 0 : messageCount;
+
+        if (currentMessageCount < 0) {
+            throw new IllegalStateException("会话消息数量不能小于0，messageCount=%s".formatted(currentMessageCount));
+        }
+
+        return currentMessageCount + 1;
+    }
+
+    /**
      * 记录当前会话新增一条聊天消息。
      *
      * <p>无论是USER消息还是ASSISTANT消息，都属于Conversation内部的一条ChatMessage，
