@@ -18,6 +18,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -98,7 +100,7 @@ class ColdChainAgentApplicationServiceImplTest {
         AgentChatCommand command = AgentChatCommand.of("1",AGENT_CODE, QUESTION);
 
         when(agentRegistry.getRequiredAgent(AGENT_CODE)).thenReturn(agentDefinition);
-        when(agentExecutor.execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), eq(QUESTION))).thenReturn(AGENT_ANSWER);
+        when(agentExecutor.execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), List.of(), eq(QUESTION))).thenReturn(AGENT_ANSWER);
         when(currentUserContext.getCurrentUserId()).thenReturn(90001L);
         when(currentUserContext.getCurrentTenantId()).thenReturn(1001L);
 
@@ -115,7 +117,7 @@ class ColdChainAgentApplicationServiceImplTest {
         InOrder inOrder = inOrder(agentExecutionRepository, agentExecutor);
         inOrder.verify(agentExecutionRepository).saveCreated(any(AgentExecution.class));
         inOrder.verify(agentExecutionRepository).updateToRunning(any(AgentExecution.class));
-        inOrder.verify(agentExecutor).execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), eq(QUESTION));
+        inOrder.verify(agentExecutor).execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), List.of(), eq(QUESTION));
         inOrder.verify(agentExecutionRepository).updateToSucceeded(any(AgentExecution.class));
     }
 
@@ -131,7 +133,7 @@ class ColdChainAgentApplicationServiceImplTest {
         when(currentUserContext.getCurrentTenantId()).thenReturn(1001L);
 
         when(agentRegistry.getRequiredAgent(AGENT_CODE)).thenReturn(agentDefinition);
-        when(agentExecutor.execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), eq(QUESTION))).thenThrow(new IllegalStateException("模拟模型调用失败"));
+        when(agentExecutor.execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), List.of(), eq(QUESTION))).thenThrow(new IllegalStateException("模拟模型调用失败"));
 
         AgentExecutionException exception = assertThrows(AgentExecutionException.class, () -> coldChainAgentApplicationService.chat(command));
 

@@ -151,7 +151,7 @@ class SpringAiAgentExecutorTest {
         mockSuccessfulChatClientCall(primaryChatClient, QUESTION, ANSWER);
 
         // 执行真正的Agent执行逻辑。
-        String actualAnswer = springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, agentInvocationContext, QUESTION);
+        String actualAnswer = springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, agentInvocationContext, List.of(), QUESTION);
 
         assertEquals(ANSWER, actualAnswer);
 
@@ -199,7 +199,7 @@ class SpringAiAgentExecutorTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> springAiAgentExecutor.execute(" ", agentDefinition, agentInvocationContext, QUESTION));
+                () -> springAiAgentExecutor.execute(" ", agentDefinition, agentInvocationContext, List.of(), QUESTION));
 
         assertEquals("Agent请求标识不能为空", exception.getMessage());
 
@@ -216,7 +216,7 @@ class SpringAiAgentExecutorTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> springAiAgentExecutor.execute(REQUEST_ID, null, agentInvocationContext, QUESTION));
+                () -> springAiAgentExecutor.execute(REQUEST_ID, null, agentInvocationContext, List.of(), QUESTION));
 
         assertEquals("Agent定义不能为空", exception.getMessage());
         verifyNoInteractions(primaryChatClient);
@@ -231,7 +231,7 @@ class SpringAiAgentExecutorTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, null, QUESTION));
+                () -> springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, null, List.of(), QUESTION));
 
         assertEquals("Agent调用上下文不能为空", exception.getMessage());
         verifyNoInteractions(primaryChatClient);
@@ -246,7 +246,7 @@ class SpringAiAgentExecutorTest {
 
         IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, agentInvocationContext, "   "));
+                () -> springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, agentInvocationContext, List.of(), "   "));
 
         assertEquals("Agent执行问题不能为空", exception.getMessage());
         verifyNoInteractions(primaryChatClient);
@@ -264,7 +264,7 @@ class SpringAiAgentExecutorTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> springAiAgentExecutor.execute(REQUEST_ID, unknownAgentDefinition, agentInvocationContext, QUESTION));
+                () -> springAiAgentExecutor.execute(REQUEST_ID, unknownAgentDefinition, agentInvocationContext, List.of(), QUESTION));
 
         assertTrue(exception.getMessage().contains("执行时未找到Agent运行配置"));
         verifyNoInteractions(primaryChatClient);
@@ -285,7 +285,7 @@ class SpringAiAgentExecutorTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, agentInvocationContext, QUESTION));
+                () -> springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, agentInvocationContext, List.of(), QUESTION));
 
         assertEquals("Agent模型未返回有效回答", exception.getMessage());
     }
@@ -312,7 +312,7 @@ class SpringAiAgentExecutorTest {
 
         RuntimeException actualException = assertThrows(
                 RuntimeException.class,
-                () -> springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, agentInvocationContext, QUESTION));
+                () -> springAiAgentExecutor.execute(REQUEST_ID, agentDefinition, agentInvocationContext, List.of(), QUESTION));
 
         assertSame(chatClientException, actualException);
     }

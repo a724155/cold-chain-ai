@@ -3,6 +3,7 @@ package com.ymm.coldchainai.agent.core.infrastructure.springai;
 import com.ymm.coldchainai.agent.core.application.context.AgentInvocationContext;
 import com.ymm.coldchainai.agent.core.application.enumtype.AgentErrorCodeEnum;
 import com.ymm.coldchainai.agent.core.application.executor.IAgentExecutor;
+import com.ymm.coldchainai.agent.core.application.memory.model.AgentMemoryMessage;
 import com.ymm.coldchainai.agent.core.application.registry.IAgentRegistry;
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
 import com.ymm.coldchainai.agent.core.infrastructure.advisor.AgentAdvisorContextKeys;
@@ -10,8 +11,13 @@ import com.ymm.coldchainai.agent.core.infrastructure.springai.model.SpringAiAgen
 import com.ymm.coldchainai.agent.core.infrastructure.tool.AgentToolContextKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -148,16 +154,29 @@ public class SpringAiAgentExecutor implements IAgentExecutor {
     }
 
     /**
-     * 执行一次正式Agent问答。
+     * 执行一次携带Conversation Memory的正式Agent问答。
+     *
+     * <p>memoryMessageList只包含此前已经完成的问答轮次，
+     * 当前question仍然通过user(question)作为本轮新消息加入Prompt，
+     * 避免当前问题在历史Memory和本轮User Message中重复出现。</p>
+     *
+     * <p>该方法只负责模型调用，不查询MySQL，也不保存Chat History。
+     * 历史读取和数据权限校验已经由Application层的Memory Provider完成。</p>
+     *
+     * <p>在挖矿流程中，Memory消息相当于矿工随身携带的最近项目档案，
+     * question相当于客户本轮新下达的开采任务；
+     * 设备需要同时看到历史档案和当前任务，才能理解“刚才那个”“那一单”等上下文指代。</p>
      *
      * @param requestId 本次Agent请求唯一标识
      * @param agentDefinition 本次需要执行的Agent定义
      * @param agentInvocationContext 本次调用使用的受信任用户和租户上下文
-     * @param question 用户问题
+     * @param memoryMessageList 当前Conversation最近的有效上下文消息
+     * @param question 本轮用户问题
      * @return 模型生成的完整答案
      */
     @Override
-    public String execute(String requestId, AgentDefinition agentDefinition, AgentInvocationContext agentInvocationContext, String question) {
+    public String execute(String requestId, AgentDefinition agentDefinition, AgentInvocationContext agentInvocationContext,
+                          List<AgentMemoryMessage> memoryMessageList, String question) {
 
         if (StringUtils.isBlank(requestId)) {
             // requestId 由 Application Service 生成，为空说明内部调用链出现程序错误。
@@ -184,19 +203,54 @@ public class SpringAiAgentExecutor implements IAgentExecutor {
         SpringAiAgentRuntime springAiAgentRuntime = springAiAgentRuntimeMap.get(normalizedAgentCode);
 
         if (Objects.isNull(springAiAgentRuntime)) {
-
             // 启动阶段已经校验全部已启用Agent，因此正常运行时不应该进入这里。如果仍然找不到，说明运行期间配置发生了非预期变化或内部调用绕过了注册中心。
             throw createRuntimeConfigurationException("执行时未找到Agent运行配置，agentCode=%s".formatted(agentDefinition.getAgentCode()));
         }
 
         // 从运行配置中获取当前Agent专属ChatClient，禁止使用全局通用ChatClient。
+        // 不同Agent可能绑定不同System Prompt、模型参数、Advisor和Tool集合，必须通过Runtime选择对应运行实例。
         ChatClient chatClient = springAiAgentRuntime.getChatClient();
 
+        // Application层Memory消息不依赖Spring AI框架。只有进入Infrastructure执行器后才根据历史角色转换成Spring AI能够识别的UserMessage和AssistantMessage。
+        List<Message> springAiMemoryMessageList = convertToSpringAiMessageList(memoryMessageList);
+
         /*
-         * advisorSpec.param()写入的是ChatClient Advisor上下文，不是模型Prompt。
-         * AgentLifecycleLoggingAdvisor和ModelLifecycleLoggingAdvisor会从context中读取这些字段。
+         * 创建一次Chat请求构造器。
+         * ChatClient本身类似一个已经配置好的AI客户端模板：
+         * 包含模型、默认Prompt、Tool等固定能力。
+         * prompt()返回的是当前这一次调用的请求构建对象，
+         * 后续可以继续追加：
+         * 1. 历史消息；
+         * 2. Advisor上下文；
+         * 3. Tool调用上下文；
+         * 4. 当前用户问题。
+         * 单独保存requestSpec，是为了后续根据业务条件动态修改请求内容，
+         * 避免大量if判断导致链式调用嵌套过深。
          */
-        String answer = chatClient.prompt()
+        ChatClient.ChatClientRequestSpec requestSpec = chatClient.prompt();
+
+        // 只有历史Memory非空时才调用messages()。新Conversation没有历史，不增加无意义的空消息集合。
+        if (CollectionUtils.isNotEmpty(springAiMemoryMessageList)) {
+
+            /*
+             * messages()添加的是历史上下文。
+             * 例如：
+             * USER：司机123今天成交几个订单？
+             * ASSISTANT：司机123今天成交5个订单。
+             * 这些属于历史Memory，用于帮助模型理解当前Conversation背景。
+             */
+            requestSpec = requestSpec.messages(springAiMemoryMessageList);
+        }
+        /*
+         * 完成当前请求剩余上下文组装并调用模型。
+         * messages():加入历史Conversation上下文。
+         * advisors():传递Agent执行链路需要的requestId、agentCode等监控信息。
+         * toolContext():给Tool提供受信任业务上下文，例如当前用户ID、租户ID，避免Tool参数完全依赖模型输入造成权限风险。
+         * user(question):设置本轮用户最新问题。
+         * call():同步调用ChatModel执行一次完整Agent流程。
+         * content():获取最终文本回答。
+         */
+        String answer = requestSpec
                 .advisors(advisorSpec -> advisorSpec.param(AgentAdvisorContextKeys.REQUEST_ID, requestId)
                         .param(AgentAdvisorContextKeys.AGENT_CODE, agentDefinition.getAgentCode())
                         .param(AgentAdvisorContextKeys.AGENT_NAME, agentDefinition.getAgentName()))
@@ -208,6 +262,82 @@ public class SpringAiAgentExecutor implements IAgentExecutor {
         }
 
         return answer;
+    }
+
+    /**
+     * 将Application层Memory消息转换成Spring AI Message列表。
+     *
+     * <p>Application层维护的是自己的领域消息模型，
+     * 但Spring AI调用ChatModel时需要的是Spring AI定义的Message对象。
+     * 因此这里承担领域模型到AI框架模型之间的转换职责。</p>
+     *
+     * <p>这里使用一次Stream遍历完成：
+     * 1. 集合空安全处理；
+     * 2. 元素非空校验；
+     * 3. 单条消息类型转换。
+     *
+     * 不提前单独for循环校验，再stream转换，避免对同一个List进行重复扫描。</p>
+     *
+     * @param memoryMessageList Application层上下文消息列表
+     * @return Spring AI能够识别的Message列表
+     */
+    private List<Message> convertToSpringAiMessageList(List<AgentMemoryMessage> memoryMessageList) {
+        // ListUtils.emptyIfNull保证即使上游传入null，也转换为空列表，避免stream()直接触发空指针异常。
+        List<AgentMemoryMessage> safeMemoryMessageList = ListUtils.emptyIfNull(memoryMessageList);
+
+        // Stream遍历每条Memory消息，将Application领域对象转换成Spring AI框架Message对象。
+        return safeMemoryMessageList.stream()
+                .map(memoryMessage -> {
+                    // 防止非法null元素进入转换逻辑，避免后续调用getMessageRole()产生空指针。
+                    if (Objects.isNull(memoryMessage)) {
+                        throw new IllegalArgumentException("Agent Memory消息列表不能包含空元素");
+                    }
+                    // 将当前领域消息转换成Spring AI支持的UserMessage或AssistantMessage。
+                    return convertToSpringAiMessage(memoryMessage);
+                })
+                .toList();
+    }
+
+    /**
+     * 将单条Agent Memory消息转换成Spring AI消息。
+     *
+     * <p>Spring AI不能直接理解项目内部定义的AgentMemoryMessage，
+     * 必须转换成框架提供的Message实现。</p>
+     *
+     * <p>转换关系：
+     * USER       → UserMessage
+     * ASSISTANT  → AssistantMessage
+     *
+     * 这样模型调用时仍然知道历史消息分别是谁发送的，
+     * 不需要把历史拼接成一大段普通文本。</p>
+     *
+     * @param memoryMessage Application层Memory消息
+     * @return Spring AI消息
+     */
+    private Message convertToSpringAiMessage(AgentMemoryMessage memoryMessage) {
+
+        // 角色决定转换成哪一种Spring AI Message，角色缺失无法判断消息身份。
+        if (Objects.isNull(memoryMessage.getMessageRole())) {
+            throw new IllegalArgumentException("Agent Memory消息角色不能为空");
+        }
+        // 消息正文为空时没有实际上下文意义，禁止进入模型调用。
+        if (StringUtils.isBlank(memoryMessage.getMessageContent())) {
+            throw new IllegalArgumentException("Agent Memory消息正文不能为空");
+        }
+        /*
+         * Java 14以后支持的switch表达式。
+         * 与传统switch不同：
+         * 1. switch本身可以直接返回结果；
+         * 2. 使用 -> 后不需要break；
+         * 3. 每个case必须产生一个明确结果。
+         * 这里根据消息角色选择对应Spring AI Message实现。
+         */
+        return switch (memoryMessage.getMessageRole()) {
+            // 用户历史消息转换成Spring AI UserMessage。
+            case USER -> new UserMessage(memoryMessage.getMessageContent());
+            // AI历史回答转换成Spring AI AssistantMessage。
+            case ASSISTANT -> new AssistantMessage(memoryMessage.getMessageContent());
+        };
     }
 
     /**

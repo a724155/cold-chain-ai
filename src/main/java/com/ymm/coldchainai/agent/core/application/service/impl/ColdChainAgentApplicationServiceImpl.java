@@ -10,6 +10,8 @@ import com.ymm.coldchainai.agent.core.application.command.AgentChatCommand;
 import com.ymm.coldchainai.agent.core.application.context.AgentInvocationContext;
 import com.ymm.coldchainai.agent.core.application.dto.AgentAnswerDTO;
 import com.ymm.coldchainai.agent.core.application.executor.IAgentExecutor;
+import com.ymm.coldchainai.agent.core.application.memory.model.AgentMemoryMessage;
+import com.ymm.coldchainai.agent.core.application.memory.provider.IAgentConversationMemoryProvider;
 import com.ymm.coldchainai.agent.core.application.registry.IAgentRegistry;
 import com.ymm.coldchainai.agent.core.application.service.IColdChainAgentApplicationService;
 import com.ymm.coldchainai.agent.core.domain.model.AgentDefinition;
@@ -25,6 +27,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -118,6 +121,15 @@ public class ColdChainAgentApplicationServiceImpl implements IColdChainAgentAppl
     private final IAgentChatHistoryApplicationService agentChatHistoryApplicationService;
 
     /**
+     * Agent Conversation Memory提供者。
+     *
+     * <p>负责从MySQL Chat History读取最近完整问答，并转换成与Spring AI无关的Application层Memory消息。</p>
+     *
+     * <p>在挖矿流程中，该组件相当于档案筛选员：在设备开工前，从完整项目档案中整理最近有效记录并放入随身资料袋。</p>
+     */
+    private final IAgentConversationMemoryProvider agentConversationMemoryProvider;
+
+    /**
      * 当前登录用户上下文。
      *
      * <p>Application层通过该端口读取受信任用户和租户信息，
@@ -187,6 +199,14 @@ public class ColdChainAgentApplicationServiceImpl implements IColdChainAgentAppl
         String answer;
 
         try {
+
+            /*
+             * 在保存本轮USER问题之前读取历史Memory。
+             * 这样Memory只包含此前已经完成的问答，本轮question不会同时出现在历史列表和user(question)中造成重复。
+             * 新Conversation没有历史，直接返回空List；已有Conversation则通过用户和租户权限条件读取最近完整问答。
+             */
+            List<AgentMemoryMessage> memoryMessageList = loadConversationMemory(conversationDTO, agentInvocationContext);
+
             /*
              * 短事务1：保存USER问题。
              * appendMessage()位于另一个Spring Bean中，通过代理开启事务：
@@ -204,7 +224,7 @@ public class ColdChainAgentApplicationServiceImpl implements IColdChainAgentAppl
              * 远程模型和Tool Calling调用发生在两个ChatMessage短事务之间。当前线程此时没有持有Conversation的FOR UPDATE行锁。
              * 与订单场景相同，不能在订单行锁事务中等待支付渠道或者RPC；Conversation也不能在行锁事务中等待大模型返回。
              */
-            answer = agentExecutor.execute(requestId, agentDefinition, agentInvocationContext, command.getQuestion());
+            answer = agentExecutor.execute(requestId, agentDefinition, agentInvocationContext, memoryMessageList, command.getQuestion());
 
             /*
              * 短事务2：保存ASSISTANT最终回答。
@@ -238,6 +258,44 @@ public class ColdChainAgentApplicationServiceImpl implements IColdChainAgentAppl
 
         return AgentAnswerDTO.of(agentExecution.getRequestId(), conversationDTO.getConversationId(), agentExecution.getAgentCode(),
                 agentExecution.getAgentName(), answer, agentExecution.getCostMillis());
+    }
+
+    /**
+     * 加载当前Conversation最近的有效模型上下文。
+     *
+     * <p>新Conversation尚未产生任何历史消息，直接返回空列表，
+     * 避免额外执行一次Conversation和ChatMessage查询。</p>
+     *
+     * <p>已有Conversation通过IAgentConversationMemoryProvider加载最近完整问答。
+     * Provider会使用conversationId、currentUserId和currentTenantId完成数据权限校验，
+     * 并过滤执行失败留下的孤立USER消息。</p>
+     *
+     * <p>该读取发生在本轮USER消息保存之前，
+     * 保证当前问题只通过Executor的user(question)进入一次Prompt。</p>
+     *
+     * <p>在挖矿流程中，新项目没有旧档案，不需要调阅；
+     * 继续旧项目时，档案筛选员会在客户新要求归档前先整理此前完成的开采记录。</p>
+     *
+     * @param conversationDTO 当前问答所属Conversation
+     * @param agentInvocationContext 当前受信任用户和租户上下文
+     * @return 最近有效Memory消息，新Conversation返回空列表
+     */
+    private List<AgentMemoryMessage> loadConversationMemory(AgentConversationDTO conversationDTO, AgentInvocationContext agentInvocationContext) {
+
+        if (Objects.isNull(conversationDTO)) {
+            throw new IllegalArgumentException("加载Chat Memory时Conversation DTO不能为空");
+        }
+
+        if (Objects.isNull(agentInvocationContext)) {
+            throw new IllegalArgumentException("加载Chat Memory时Agent调用上下文不能为空");
+        }
+
+        // 新建Conversation不存在历史消息，避免执行没有意义的数据库查询。
+        if (Boolean.TRUE.equals(conversationDTO.getNewlyCreated())) {
+            return List.of();
+        }
+
+        return agentConversationMemoryProvider.loadRecentMemory(conversationDTO.getConversationId(), agentInvocationContext);
     }
 
     /**

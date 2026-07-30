@@ -150,3 +150,8 @@ cold-chain-ai:
       # text-embedding-v4的OpenAI兼容接口单次最多接收10条文本，
       # 因此这里把单批Document数量限制为10，避免后续文档增多后一次提交过多Chunk导致Embedding接口拒绝请求。
       max-document-batch-size: 10
+
+  agent:
+    chat-memory:
+      # 单次发送给模型的最大历史消息数量。20条消息通常约等于10轮完整问答。
+      max-messages: 20
