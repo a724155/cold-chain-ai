@@ -95,7 +95,7 @@ class ColdChainAgentApplicationServiceImplTest {
     @Test
     void shouldPersistSuccessfulExecutionLifecycle() {
         AgentDefinition agentDefinition = AgentDefinition.of(AGENT_CODE, AGENT_NAME, "测试Agent", true, true);
-        AgentChatCommand command = AgentChatCommand.of(AGENT_CODE, QUESTION);
+        AgentChatCommand command = AgentChatCommand.of("1",AGENT_CODE, QUESTION);
 
         when(agentRegistry.getRequiredAgent(AGENT_CODE)).thenReturn(agentDefinition);
         when(agentExecutor.execute(anyString(), same(agentDefinition), any(AgentInvocationContext.class), eq(QUESTION))).thenReturn(AGENT_ANSWER);
@@ -125,7 +125,7 @@ class ColdChainAgentApplicationServiceImplTest {
     @Test
     void shouldPersistFailedExecutionWhenExecutorThrowsException() {
         AgentDefinition agentDefinition = AgentDefinition.of(AGENT_CODE, AGENT_NAME, "测试Agent", true, true);
-        AgentChatCommand command = AgentChatCommand.of(AGENT_CODE, QUESTION);
+        AgentChatCommand command = AgentChatCommand.of("1",AGENT_CODE, QUESTION);
 
         when(currentUserContext.getCurrentUserId()).thenReturn(90001L);
         when(currentUserContext.getCurrentTenantId()).thenReturn(1001L);

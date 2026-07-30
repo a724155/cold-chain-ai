@@ -115,9 +115,7 @@ public class AgentChatHistoryApplicationServiceImpl implements IAgentChatHistory
          * 锁会一直持有到当前@Transactional方法提交或者回滚，从而保护后面的sequenceNo计算、消息插入和统计更新。
          */
         Optional<AgentConversation> conversationOptional = agentConversationRepository.findByConversationIdAndOwnerForUpdate(
-                        command.getConversationId(),
-                        invocationContext.getCurrentUserId(),
-                        invocationContext.getCurrentTenantId());
+                        command.getConversationId(), invocationContext.getCurrentUserId(),invocationContext.getCurrentTenantId());
 
         /*
          * 查询不到既可能表示conversationId不存在，也可能表示当前用户或租户没有权限。

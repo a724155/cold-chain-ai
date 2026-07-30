@@ -4,21 +4,34 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 正式 Agent 应用服务返回 DTO。
+ * 正式Agent应用服务返回DTO。
  *
- * <p>该对象用于在 Application 层向 Interfaces 层传递 Agent 执行结果，
- * 不属于 HTTP Response，也不属于数据库对象。</p>
+ * <p>该对象用于在Application层向Interfaces层传递Agent执行结果，
+ * 不属于HTTP Response，也不属于数据库对象。</p>
+ *
+ * <p>在挖矿流程中，该DTO相当于矿场项目总调度员交给接待窗口的交付凭证：
+ * conversationId标识长期项目，requestId标识本轮作业，
+ * answer是最终交付结果，costMillis是本轮作业耗时。</p>
  */
 @Getter
 @AllArgsConstructor(staticName = "of")
 public class AgentAnswerDTO {
 
     /**
-     * 本次 Agent 请求的唯一标识。
+     * 本次Agent请求的唯一标识。
      *
-     * <p>该标识用于关联接口响应、Agent执行日志和异常排查信息。</p>
+     * <p>用于关联接口响应、AgentExecution、USER消息、ASSISTANT消息、
+     * 模型日志和后续Tool执行审计信息。</p>
      */
     private final String requestId;
+
+    /**
+     * 本次问答所属Conversation业务唯一标识。
+     *
+     * <p>同一Conversation可以包含多个不同requestId，
+     * 每个requestId代表其中一轮独立Agent执行。</p>
+     */
+    private final String conversationId;
 
     /**
      * 本次实际执行的Agent编码。
@@ -31,14 +44,15 @@ public class AgentAnswerDTO {
     private final String agentName;
 
     /**
-     * Agent 返回的完整答案。
+     * Agent返回的完整答案。
      */
     private final String answer;
 
     /**
-     * 本次 Agent 调用总耗时，单位为毫秒。
+     * 本次Agent调用总耗时，单位为毫秒。
      *
-     * <p>当前耗时包含 Application Service 调用执行器和模型等待时间。</p>
+     * <p>当前耗时来源于AgentExecution，
+     * 主要覆盖模型和Tool Calling执行链路。</p>
      */
     private final Long costMillis;
 }
