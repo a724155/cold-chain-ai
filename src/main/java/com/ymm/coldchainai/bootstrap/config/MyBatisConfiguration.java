@@ -1,5 +1,6 @@
 package com.ymm.coldchainai.bootstrap.config;
 
+import com.ymm.coldchainai.agent.audit.infrastructure.persistence.mapper.IToolExecutionMapper;
 import com.ymm.coldchainai.agent.conversation.infrastructure.persistence.mapper.IAgentChatMessageMapper;
 import com.ymm.coldchainai.agent.conversation.infrastructure.persistence.mapper.IAgentConversationMapper;
 import com.ymm.coldchainai.agent.core.infrastructure.persistence.mapper.IAgentExecutionMapper;
@@ -26,6 +27,7 @@ import org.springframework.context.annotation.Configuration;
         IColdChainOrderMapper.class,
         IColdChainPayOrderMapper.class,
         IAgentConversationMapper.class,
-        IAgentChatMessageMapper.class})
+        IAgentChatMessageMapper.class,
+        IToolExecutionMapper.class})
 public class MyBatisConfiguration {
 }

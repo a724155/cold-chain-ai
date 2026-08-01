@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.ymm.coldchainai.agent.audit.infrastructure.persistence.mapper.IToolExecutionMapper">
+
+    <!--
+        插入一条RUNNING状态的Tool执行审计记录。
+
+        正式执行顺序是：
+        1. 先插入RUNNING审计记录；
+        2. 提交本次审计写入事务；
+        3. 再执行真实Tool业务；
+        4. Tool完成后通过另一条UPDATE写入SUCCEEDED或者FAILED。
+
+        不能把真实Tool执行包在本次INSERT事务中。
+        订单查询、支付查询、RAG向量检索或者未来RPC耗时不可控，
+        长事务会持续占用数据库连接和事务资源。
+    -->
+    <insert id="insertRunning"
+            parameterType="com.ymm.coldchainai.agent.audit.infrastructure.persistence.dataobject.ToolExecutionDO"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO cold_chain_ai_tool_execution
+        (
+        tool_execution_id,
+        request_id,
+        agent_code,
+        tool_name,
+        current_user_id,
+        current_tenant_id,
+        input_summary,
+        execution_status,
+        start_time
+        )
+        VALUES
+        (
+        #{toolExecutionId},
+        #{requestId},
+        #{agentCode},
+        #{toolName},
+        #{currentUserId},
+        #{currentTenantId},
+        #{inputSummary},
+        #{executionStatus},
+        #{startTime}
+        )
+
+    </insert>
+
+    <!--
+        将Tool执行状态从RUNNING原子更新为SUCCEEDED。
+
+        这里不需要先SELECT ... FOR UPDATE：
+        当前操作不需要读取数据库字段后再计算新业务结果，
+        而是直接通过一条带状态条件的UPDATE完成状态推进。
+
+        WHERE execution_status = #{expectedStatus}
+        相当于轻量级乐观状态校验：
+
+        - 更新1行：说明记录存在并且仍然处于RUNNING；
+        - 更新0行：说明记录不存在、已经完成或者发生了重复更新；
+        - Repository必须把更新0行视为异常，不能假装成功。
+
+        与订单FOR UPDATE对比：
+        订单往往需要先读取金额、状态或库存，再根据读取结果做复杂判断和写入，
+        因此需要悲观锁保护完整读后写链路。
+
+        Tool审计终态更新只需要执行确定性的状态推进，
+        使用单条条件UPDATE即可避免不必要的行锁查询。
+    -->
+    <update id="updateToSucceeded" parameterType="com.ymm.coldchainai.agent.audit.infrastructure.persistence.dataobject.ToolExecutionDO">
+
+        UPDATE cold_chain_ai_tool_execution
+        SET execution_status = #{executionStatus},
+        output_summary = #{outputSummary},
+        error_code = NULL,
+        error_message = NULL,
+        finish_time = #{finishTime},
+        cost_millis = #{costMillis},
+        update_time = CURRENT_TIMESTAMP(3)
+        WHERE tool_execution_id = #{toolExecutionId}
+        AND execution_status = #{expectedStatus}
+
+    </update>
+
+    <!--
+        将Tool执行状态从RUNNING原子更新为FAILED。
+        FAILED和SUCCEEDED都属于不可再次变更的终态，因此SQL同样要求数据库原状态必须是RUNNING。
+        如果同一Tool异常处理代码被重复执行，第一次UPDATE会成功，第二次UPDATE影响0行，
+        Repository会明确暴露重复状态推进问题。
+    -->
+    <update id="updateToFailed"
+            parameterType="com.ymm.coldchainai.agent.audit.infrastructure.persistence.dataobject.ToolExecutionDO">
+
+        UPDATE cold_chain_ai_tool_execution
+        SET execution_status = #{executionStatus},
+        output_summary = NULL,
+        error_code = #{errorCode},
+        error_message = #{errorMessage},
+        finish_time = #{finishTime},
+        cost_millis = #{costMillis},
+        update_time = CURRENT_TIMESTAMP(3)
+        WHERE tool_execution_id = #{toolExecutionId}
+        AND execution_status = #{expectedStatus}
+
+    </update>
+
+</mapper>
