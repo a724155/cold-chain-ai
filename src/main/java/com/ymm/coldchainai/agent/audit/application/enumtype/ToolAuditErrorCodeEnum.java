@@ -20,6 +20,13 @@ public enum ToolAuditErrorCodeEnum implements IErrorCode {
     TOOL_AUDIT_PARAMETER_ERROR(45000, "Tool审计参数错误"),
 
     /**
+     * 根据Tool执行标识未查询到当前用户和租户有权访问的审计记录。
+     *
+     * <p>记录确实不存在和记录属于其他用户或租户使用同一个错误提示，避免调用方通过不同响应探测其他用户的Tool执行记录。</p>
+     */
+    TOOL_AUDIT_RECORD_NOT_FOUND_OR_FORBIDDEN(45001, "Tool审计记录不存在或无权访问"),
+
+    /**
      * Tool审计领域对象发生非法状态流转。
      */
     TOOL_AUDIT_STATUS_ERROR(55000, "Tool审计状态异常"),

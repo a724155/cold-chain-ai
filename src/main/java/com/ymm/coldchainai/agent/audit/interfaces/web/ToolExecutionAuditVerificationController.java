@@ -1,10 +1,14 @@
 package com.ymm.coldchainai.agent.audit.interfaces.web;
 
+import com.ymm.coldchainai.agent.audit.application.command.QueryToolExecutionAuditDetailCommand;
 import com.ymm.coldchainai.agent.audit.application.command.QueryToolExecutionAuditListCommand;
+import com.ymm.coldchainai.agent.audit.application.dto.ToolExecutionRecordDTO;
 import com.ymm.coldchainai.agent.audit.application.dto.ToolExecutionRecordListDTO;
 import com.ymm.coldchainai.agent.audit.application.service.IToolExecutionAuditQueryApplicationService;
+import com.ymm.coldchainai.agent.audit.interfaces.web.request.QueryToolExecutionAuditDetailRequest;
 import com.ymm.coldchainai.agent.audit.interfaces.web.request.QueryToolExecutionAuditListRequest;
 import com.ymm.coldchainai.agent.audit.interfaces.web.response.ToolExecutionRecordListResponse;
+import com.ymm.coldchainai.agent.audit.interfaces.web.response.ToolExecutionRecordResponse;
 import com.ymm.coldchainai.agent.core.application.context.AgentInvocationContext;
 import com.ymm.coldchainai.shared.response.YmmResult;
 import com.ymm.coldchainai.shared.security.context.ICurrentUserContext;
@@ -65,6 +69,35 @@ public class ToolExecutionAuditVerificationController {
 
         // 将Application DTO转换成稳定HTTP响应结构。
         ToolExecutionRecordListResponse response = ToolExecutionRecordListResponse.fromDTO(recordListDTO);
+
+        return YmmResult.success(response);
+    }
+
+    /**
+     * 根据toolExecutionId查询单次Tool执行审计详情。
+     *
+     * <p>接口只接收toolExecutionId，
+     * currentUserId和currentTenantId继续从后端认证上下文读取，
+     * 防止前端通过修改身份参数读取其他用户的审计记录。</p>
+     *
+     * @param request Tool执行审计详情查询请求
+     * @return 单次Tool执行审计安全详情
+     */
+    @GetMapping("/execution")
+    public YmmResult<ToolExecutionRecordResponse> getExecution(@Valid @ModelAttribute QueryToolExecutionAuditDetailRequest request) {
+
+        // 从后端认证上下文获取受信任用户和租户身份，禁止使用URL中的自定义身份字段。
+        AgentInvocationContext invocationContext = AgentInvocationContext.create(
+                currentUserContext.getCurrentUserId(), currentUserContext.getCurrentTenantId());
+
+        // 将HTTP请求转换为Application详情查询命令。
+        QueryToolExecutionAuditDetailCommand command = QueryToolExecutionAuditDetailCommand.create(request.getToolExecutionId(), invocationContext);
+
+        // Application Service执行所有权查询和不存在统一错误处理。
+        ToolExecutionRecordDTO recordDTO = toolExecutionAuditQueryApplicationService.getByToolExecutionId(command);
+
+        // 将Application DTO转换成字段注释完整的HTTP响应对象。
+        ToolExecutionRecordResponse response = ToolExecutionRecordResponse.fromDTO(recordDTO);
 
         return YmmResult.success(response);
     }

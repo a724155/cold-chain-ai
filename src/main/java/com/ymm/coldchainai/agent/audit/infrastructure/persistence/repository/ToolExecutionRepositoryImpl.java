@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * 基于MyBatis的Agent Tool执行审计Repository实现。
@@ -164,6 +165,43 @@ public class ToolExecutionRepositoryImpl implements IToolExecutionRepository {
                 })
                 .toList();
     }
+
+    /**
+     * 根据toolExecutionId和数据所有者查询单次Tool执行审计记录。
+     *
+     * <p>Repository再次校验toolExecutionId、用户ID和租户ID，
+     * 防止未来其他Application Service绕过当前查询Command直接传入非法参数。</p>
+     *
+     * @param toolExecutionId Tool执行业务唯一标识
+     * @param currentUserId 当前受信任用户ID
+     * @param currentTenantId 当前受信任租户ID
+     * @return 当前用户和租户有权访问的Tool执行领域对象
+     */
+    @Override
+    public Optional<ToolExecution> findByToolExecutionIdAndOwner(String toolExecutionId, Long currentUserId, Long currentTenantId) {
+
+        if (StringUtils.isBlank(toolExecutionId)) {
+            throw new IllegalArgumentException("查询Tool审计时toolExecutionId不能为空");
+        }
+
+        if (Objects.isNull(currentUserId) || currentUserId <= 0L) {
+            throw new IllegalArgumentException("查询Tool审计时当前用户ID必须大于0");
+        }
+
+        if (Objects.isNull(currentTenantId) || currentTenantId <= 0L) {
+            throw new IllegalArgumentException("查询Tool审计时当前租户ID必须大于0");
+        }
+
+        // 同时携带Tool执行标识、用户和租户完成数据所有权查询。
+        ToolExecutionDO toolExecutionDO = toolExecutionMapper.selectByToolExecutionIdAndOwner(
+                StringUtils.trim(toolExecutionId), currentUserId, currentTenantId);
+
+        // DO为空时返回Optional.empty()，非空时返回包含DO的Optional，避免Repository把null领域对象直接暴露给Application层。
+        return Optional.ofNullable(toolExecutionDO)
+                // 将数据库状态码和终态字段恢复为经过领域规则校验的ToolExecution。
+                .map(this::convertToDomain);
+    }
+
 
     /**
      * 将MyBatis查询结果恢复成Tool执行审计领域对象。

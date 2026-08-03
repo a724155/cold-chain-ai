@@ -3,6 +3,7 @@ package com.ymm.coldchainai.agent.audit.domain.repository;
 import com.ymm.coldchainai.agent.audit.domain.model.ToolExecution;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Agent Tool执行审计Repository领域端口。
@@ -48,4 +49,23 @@ public interface IToolExecutionRepository {
      * @return 按数据库记录顺序排列的Tool审计列表
      */
     List<ToolExecution> listByRequestIdAndOwner(String requestId, Long currentUserId, Long currentTenantId);
+
+    /**
+     * 根据Tool执行标识和数据所有者查询单次Tool执行审计记录。
+     *
+     * <p>查询条件必须同时包含toolExecutionId、currentUserId和currentTenantId，
+     * 禁止仅凭toolExecutionId读取其他用户或者其他租户的数据。</p>
+     *
+     * <p>记录不存在或者不属于当前用户时统一返回Optional.empty()，
+     * Repository不负责区分两种情况，也不向上层泄露记录是否真实存在。</p>
+     *
+     * <p>在挖矿流程中，该方法相当于根据设备作业单号和客户身份调阅单份档案，
+     * 单号正确但身份不匹配时同样不允许取出档案。</p>
+     *
+     * @param toolExecutionId Tool执行业务唯一标识
+     * @param currentUserId 当前受信任用户ID
+     * @param currentTenantId 当前受信任租户ID
+     * @return 当前用户和租户有权访问的Tool审计记录
+     */
+    Optional<ToolExecution> findByToolExecutionIdAndOwner(String toolExecutionId, Long currentUserId, Long currentTenantId);
 }

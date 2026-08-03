@@ -158,7 +158,6 @@
         ORDER BY id ASC表示按照RUNNING审计记录实际插入顺序返回，便于观察本轮Agent先后调用了哪些Tool。
     -->
     <select id="selectByRequestIdAndOwner" resultMap="ToolExecutionResultMap">
-
         SELECT
         <include refid="BaseColumnList"/>
         FROM cold_chain_ai_tool_execution
@@ -166,7 +165,29 @@
         AND current_user_id = #{currentUserId}
         AND current_tenant_id = #{currentTenantId}
         ORDER BY id ASC
+    </select>
 
+    <!--
+        根据toolExecutionId查询当前用户和租户有权访问的单次Tool审计记录。
+        查询条件同时包含：
+        1. tool_execution_id；
+        2. current_user_id；
+        3. current_tenant_id。
+        即使调用者猜到其他用户的toolExecutionId，
+        用户或者租户不匹配时也无法读取对应审计记录。
+        tool_execution_id存在唯一索引，数据库最多返回一条记录。
+        该查询只读取当前审计状态，不修改数据，因此不使用FOR UPDATE。
+        如果查询期间Tool恰好完成状态更新，本次查询可能看到RUNNING或者最新终态；
+        两种结果都代表查询时刻数据库中真实可见的状态。
+    -->
+    <select id="selectByToolExecutionIdAndOwner" resultMap="ToolExecutionResultMap">
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM cold_chain_ai_tool_execution
+        WHERE tool_execution_id = #{toolExecutionId}
+        AND current_user_id = #{currentUserId}
+        AND current_tenant_id = #{currentTenantId}
+        LIMIT 1
     </select>
 
 </mapper>

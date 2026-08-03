@@ -51,4 +51,18 @@ public interface IToolExecutionMapper {
     List<ToolExecutionDO> selectByRequestIdAndOwner(@Param("requestId") String requestId,
                                                     @Param("currentUserId") Long currentUserId,
                                                     @Param("currentTenantId") Long currentTenantId);
+
+    /**
+     * 根据Tool执行标识和用户租户所有权查询单条审计记录。
+     *
+     * <p>tool_execution_id存在数据库唯一索引，正常情况下最多返回一条记录。</p>
+     *
+     * @param toolExecutionId Tool执行业务唯一标识
+     * @param currentUserId 当前受信任用户ID
+     * @param currentTenantId 当前受信任租户ID
+     * @return 匹配的Tool执行DO，记录不存在或无权访问时返回null
+     */
+    ToolExecutionDO selectByToolExecutionIdAndOwner(@Param("toolExecutionId") String toolExecutionId,
+                                                    @Param("currentUserId") Long currentUserId,
+                                                    @Param("currentTenantId") Long currentTenantId);
 }
