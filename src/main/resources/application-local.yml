@@ -155,3 +155,25 @@ cold-chain-ai:
     chat-memory:
       # 单次发送给模型的最大历史消息数量。20条消息通常约等于10轮完整问答。
       max-messages: 20
+
+    # Agent与Tool权限规则。
+    # 系统采用默认拒绝：没有显式配置的Agent与Tool组合不能执行。
+    tool-permission:
+      rule-list:
+        # 冷运综合Agent允许所有合法登录用户查询司机成交订单。
+        - agent-code: cold-chain-general
+          tool-name: query_driver_deal_orders
+          permission-scope: AUTHENTICATED
+          enabled: true
+
+        # 冷运综合Agent允许所有合法登录用户查询订单定金支付状态。
+        - agent-code: cold-chain-general
+          tool-name: query_order_deposit_payment
+          permission-scope: AUTHENTICATED
+          enabled: true
+
+        # 冷运综合Agent允许所有合法登录用户查询内部规范知识。
+        - agent-code: cold-chain-general
+          tool-name: query_internal_rules
+          permission-scope: AUTHENTICATED
+          enabled: true
