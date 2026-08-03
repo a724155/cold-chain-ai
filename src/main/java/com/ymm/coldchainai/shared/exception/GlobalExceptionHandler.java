@@ -253,7 +253,6 @@ public class GlobalExceptionHandler {
         if (Objects.isNull(request)) {
             return StringUtils.EMPTY;
         }
-
         return StringUtils.defaultString(request.getRequestURI());
     }
 }

@@ -212,6 +212,95 @@ public class ToolExecution {
     }
 
     /**
+     * 根据已经持久化的RUNNING审计信息恢复Tool执行领域对象。
+     *
+     * <p>Tool开始、成功和失败分别由三个独立短事务完成。
+     * startExecution()事务提交后，Application层只保留ToolExecutionAuditDTO；
+     * Tool执行结束时，需要根据DTO重新恢复RUNNING领域对象，
+     * 再调用succeed()或者fail()完成领域状态推进。</p>
+     *
+     * <p>这里不能直接创建SUCCEEDED或者FAILED对象，
+     * 因为完成时间、执行耗时以及终态字段仍然必须经过领域行为统一计算。</p>
+     *
+     * <p>在挖矿流程中，该方法相当于设备作业结束后，
+     * 档案员根据之前开具的RUNNING作业回执重新找到原任务单，
+     * 然后再登记成功结果或者失败原因。</p>
+     *
+     * @param toolExecutionId Tool执行业务唯一标识
+     * @param requestId 所属Agent请求唯一标识
+     * @param agentCode 发起调用的Agent稳定编码
+     * @param toolName Tool稳定名称
+     * @param currentUserId 当前受信任用户ID
+     * @param currentTenantId 当前受信任租户ID
+     * @param inputSummary Tool入参安全摘要
+     * @param startTime Tool原始开始执行时间
+     * @return 已恢复的RUNNING Tool执行领域对象
+     */
+    public static ToolExecution restoreRunning(
+            String toolExecutionId,
+            String requestId,
+            String agentCode,
+            String toolName,
+            Long currentUserId,
+            Long currentTenantId,
+            String inputSummary,
+            LocalDateTime startTime) {
+
+        if (StringUtils.isBlank(toolExecutionId)) {
+            throw new IllegalArgumentException("Tool执行标识不能为空");
+        }
+
+        if (StringUtils.isBlank(requestId)) {
+            throw new IllegalArgumentException("Agent请求标识不能为空");
+        }
+
+        if (StringUtils.isBlank(agentCode)) {
+            throw new IllegalArgumentException("Agent编码不能为空");
+        }
+
+        if (StringUtils.isBlank(toolName)) {
+            throw new IllegalArgumentException("Tool名称不能为空");
+        }
+
+        if (Objects.isNull(currentUserId) || currentUserId <= 0L) {
+            throw new IllegalArgumentException("当前用户ID必须大于0");
+        }
+
+        if (Objects.isNull(currentTenantId) || currentTenantId <= 0L) {
+            throw new IllegalArgumentException("当前租户ID必须大于0");
+        }
+
+        if (Objects.isNull(startTime)) {
+            throw new IllegalArgumentException("Tool开始时间不能为空");
+        }
+
+        // 空白入参摘要恢复为统一说明，保证领域对象和数据库RUNNING记录语义一致。
+        String resolvedInputSummary = StringUtils.defaultIfBlank(inputSummary, EMPTY_INPUT_SUMMARY);
+
+        /*
+         * 恢复时保持RUNNING状态，不生成新的startTime。
+         * 如果错误地使用LocalDateTime.now()，最终costMillis只会计算终态更新阶段，
+         * 无法代表真实Tool业务执行耗时。
+         */
+        return new ToolExecution(
+                null,
+                StringUtils.trim(toolExecutionId),
+                StringUtils.trim(requestId),
+                StringUtils.trim(agentCode),
+                StringUtils.trim(toolName),
+                currentUserId,
+                currentTenantId,
+                resolvedInputSummary,
+                null,
+                ToolExecutionStatusEnum.RUNNING,
+                null,
+                null,
+                startTime,
+                null,
+                null);
+    }
+
+    /**
      * 将Tool执行状态推进为SUCCEEDED。
      *
      * <p>只有RUNNING状态允许成功完成。

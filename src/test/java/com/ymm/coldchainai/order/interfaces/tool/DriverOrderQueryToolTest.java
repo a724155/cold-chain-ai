@@ -1,5 +1,6 @@
 package com.ymm.coldchainai.order.interfaces.tool;
 
+import com.ymm.coldchainai.agent.audit.application.service.IToolExecutionAuditApplicationService;
 import com.ymm.coldchainai.agent.core.infrastructure.tool.AgentToolContextKeys;
 import com.ymm.coldchainai.order.application.query.IDriverOrderQueryService;
 import com.ymm.coldchainai.order.application.query.dto.DriverOrderSummaryDTO;
@@ -46,6 +47,7 @@ class DriverOrderQueryToolTest {
      */
     @InjectMocks
     private DriverOrderQueryTool driverOrderQueryTool;
+
 
     /**
      * 测试Tool使用受信任租户上下文查询并返回订单。

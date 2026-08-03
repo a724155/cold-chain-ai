@@ -1,5 +1,8 @@
 package com.ymm.coldchainai.order.interfaces.tool;
 
+import com.ymm.coldchainai.agent.audit.application.command.StartToolExecutionAuditCommand;
+import com.ymm.coldchainai.agent.audit.application.dto.ToolExecutionAuditDTO;
+import com.ymm.coldchainai.agent.audit.application.service.IToolExecutionAuditApplicationService;
 import com.ymm.coldchainai.agent.core.application.enumtype.AgentErrorCodeEnum;
 import com.ymm.coldchainai.agent.core.infrastructure.tool.AgentToolContextKeys;
 import com.ymm.coldchainai.order.application.enumtype.OrderErrorCodeEnum;
@@ -50,6 +53,22 @@ import java.util.Objects;
 public class DriverOrderQueryTool {
 
     /**
+     * 司机成交订单查询Tool稳定名称。
+     *
+     * <p>该常量同时用于@Tool注册和审计记录，
+     * 避免注解名称与审计名称分别手写后发生不一致。</p>
+     */
+    private static final String TOOL_NAME = "query_driver_deal_orders";
+
+    /**
+     * Tool没有传入最大返回数量时使用的默认值。
+     *
+     * <p>该值与DriverOrderQuery中的默认规则保持一致，
+     * 当前只用于生成审计入参摘要，不替代领域查询对象的最终业务校验。</p>
+     */
+    private static final Integer DEFAULT_MAX_RESULT_COUNT = 20;
+
+    /**
      * 冷运业务默认时区。
      *
      * <p>用户表达“今天”时，当前暂定按照中国标准时间计算。
@@ -68,10 +87,28 @@ public class DriverOrderQueryTool {
     private final IDriverOrderQueryService driverOrderQueryService;
 
     /**
+     * Tool执行审计Application Service。
+     *
+     * <p>负责在真实订单查询前后分别写入RUNNING、SUCCEEDED或者FAILED审计状态。</p>
+     *
+     * <p>在挖矿流程中，该服务相当于订单档案查询车配套的设备审计员：
+     * 查询车出发前登记开工，返回后登记结果或者故障。</p>
+     */
+    private final IToolExecutionAuditApplicationService toolExecutionAuditApplicationService;
+
+    /**
      * 查询指定司机在某一天发生过成交的冷运订单。
      *
      * <p>用户询问“司机今天有没有成交单”“某司机某天成交了哪些订单”时调用。
      * queryDate为空表示查询中国标准时间下的今天。</p>
+     *
+     * <p>本方法通过三个独立短事务完成Tool审计：</p>
+     *
+     * <p>1. 订单查询前保存RUNNING；</p>
+     * <p>2. 查询成功后保存SUCCEEDED；</p>
+     * <p>3. 参数或业务失败后保存FAILED。</p>
+     *
+     * <p>订单查询本身不处于审计数据库事务中，避免查询耗时长期占用审计事务和数据库连接。</p>
      *
      * @param driverId 待查询司机ID
      * @param queryDate 查询日期，格式yyyy-MM-dd，可以为空
@@ -80,7 +117,7 @@ public class DriverOrderQueryTool {
      * @return 结构化订单查询结果
      */
     @Tool(
-            name = "query_driver_deal_orders",
+            name = TOOL_NAME,
             description = """
                     查询指定司机在某一天发生过成交的冷运订单。
                     当用户询问某个司机今天、某天是否有成交单，或者要求列出成交订单时必须调用本工具，禁止自行猜测司机的成交单。
@@ -102,6 +139,14 @@ public class DriverOrderQueryTool {
         Long currentTenantId = resolveRequiredLong(toolContextMap, AgentToolContextKeys.CURRENT_TENANT_ID, "当前租户ID");
         Long currentUserId = resolveRequiredLong(toolContextMap, AgentToolContextKeys.CURRENT_USER_ID, "当前用户ID");
         String requestId = resolveRequiredString(toolContextMap, AgentToolContextKeys.REQUEST_ID, "requestId");
+        String agentCode = resolveRequiredString(toolContextMap, AgentToolContextKeys.AGENT_CODE, "agentCode");
+
+        // 摘要只保存司机、日期和最大数量，不保存后续完整订单号列表。该方法不会解析日期，因此即使日期非法也能先创建RUNNING审计记录。
+        String inputSummary = buildInputSummary(driverId, queryDate, maxResultCount);
+
+        // 严格审计模式：RUNNING记录保存失败时直接抛出异常，不继续执行真实订单查询，防止产生无法追踪的业务数据访问。
+        ToolExecutionAuditDTO auditDTO = toolExecutionAuditApplicationService.startExecution(
+                StartToolExecutionAuditCommand.create(requestId, agentCode, TOOL_NAME, currentUserId, currentTenantId, inputSummary));
 
         try {
             // queryDate为空时按照冷运业务时区计算今天，避免依赖模型自行猜测当前日期。
@@ -113,15 +158,27 @@ public class DriverOrderQueryTool {
             log.info("司机成交订单Tool开始，requestId={}，currentUserId={}，tenantId={}，driverId={}，queryDate={}",
                     requestId, currentUserId, currentTenantId, driverId, resolvedQueryDate);
 
+            // 查询司机在指定日期发生过成交的订单摘要。
             List<DriverOrderSummaryDTO> driverOrderSummaryDTOList = driverOrderQueryService.queryDriverDealOrderList(driverOrderQuery);
 
+            // 将Application订单摘要转换成Tool返回条目。
             List<DriverOrderToolItem> driverOrderToolItemList = convertToToolItemList(driverOrderSummaryDTOList);
+
+            // 创建本次Tool成功响应，后续审计摘要只记录数量和布尔结果。
+            DriverOrderQueryToolResponse response = DriverOrderQueryToolResponse.success(
+                    driverId, resolvedQueryDate.format(DateTimeFormatter.ISO_LOCAL_DATE), driverOrderToolItemList);
+
+            // 订单查询成功后，先在独立短事务中写入SUCCEEDED终态。审计成功后才能把业务结果返回给模型。
+            toolExecutionAuditApplicationService.markSucceeded(auditDTO, buildSuccessOutputSummary(response));
 
             log.info("司机成交订单Tool完成，requestId={}，tenantId={}，driverId={}，queryDate={}，orderCount={}",
                     requestId, currentTenantId, driverId, resolvedQueryDate, driverOrderToolItemList.size());
 
-            return DriverOrderQueryToolResponse.success(driverId, resolvedQueryDate.format(DateTimeFormatter.ISO_LOCAL_DATE), driverOrderToolItemList);
+            return response;
         } catch (BusinessException exception) {
+
+            // 业务参数不合法属于Tool执行失败，而不是系统崩溃。先把审计记录更新为FAILED，再向模型返回结构化失败结果。
+            toolExecutionAuditApplicationService.markFailed(auditDTO, exception.getCode(), exception.getMessage());
 
             // 模型生成的driverId、日期或数量不符合业务要求时，返回结构化失败结果，让模型可以向用户解释参数问题，而不是直接中断整个Agent请求。
             log.warn("司机成交订单Tool业务失败，requestId={}，driverId={}，queryDate={}，code={}，message={}",
@@ -131,10 +188,77 @@ public class DriverOrderQueryTool {
         } catch (DateTimeException exception) {
             // 日期格式错误属于模型Tool参数错误，返回安全提示供模型重新组织答案。
             String errorMessage = "查询日期格式错误，请使用yyyy-MM-dd";
+            toolExecutionAuditApplicationService.markFailed(auditDTO, OrderErrorCodeEnum.DRIVER_ORDER_QUERY_PARAMETER_ERROR.getCode(), errorMessage);
 
             log.warn("司机成交订单Tool日期解析失败，requestId={}，driverId={}，queryDate={}", requestId, driverId, queryDate);
 
             return DriverOrderQueryToolResponse.fail(driverId, queryDate, OrderErrorCodeEnum.DRIVER_ORDER_QUERY_PARAMETER_ERROR.getCode(), errorMessage);
+        } catch (RuntimeException exception) {
+            // Repository、数据库、框架或者审计终态更新异常属于系统失败。尝试把Tool审计更新为FAILED，但不能让审计更新异常覆盖最初异常。
+            markUnexpectedExecutionFailed(auditDTO, exception);
+            throw exception;
+        }
+    }
+
+    /**
+     * 构建司机订单Tool入参安全摘要。
+     *
+     * <p>摘要只保留定位本次查询所需的最小字段。queryDate为空时记录“今天”，maxResultCount为空时记录默认20，
+     * 但该摘要不会替代DriverOrderQuery的正式参数校验。</p>
+     *
+     * @param driverId 待查询司机ID
+     * @param queryDate 模型传入的原始日期
+     * @param maxResultCount 模型传入的最大查询数量
+     * @return 可安全写入Tool审计表的输入摘要
+     */
+    private String buildInputSummary(Long driverId, String queryDate, Integer maxResultCount) {
+        // 空日期代表查询业务时区下的今天，摘要中使用明确文字避免保存空值。
+        String queryDateSummary = StringUtils.defaultIfBlank(queryDate, "今天");
+        // 空最大数量按照当前业务默认值20记录。
+        Integer maxResultCountSummary = Objects.isNull(maxResultCount) ? DEFAULT_MAX_RESULT_COUNT : maxResultCount;
+        // String.formatted()是JDK 15新增实例方法，用于按模板生成紧凑的审计摘要。
+        return "driverId=%s，queryDate=%s，maxResultCount=%s".formatted(driverId, queryDateSummary, maxResultCountSummary);
+    }
+
+    /**
+     * 构建司机订单Tool成功输出安全摘要。
+     *
+     * <p>成功摘要只记录是否存在成交单、订单数量和实际查询日期，不把订单号、路线和完整订单列表重复复制到审计表。</p>
+     *
+     * @param response 司机订单Tool成功响应
+     * @return 可安全写入审计表的成功结果摘要
+     */
+    private String buildSuccessOutputSummary(DriverOrderQueryToolResponse response) {
+        if (Objects.isNull(response)) {
+            throw new IllegalArgumentException("司机订单Tool响应不能为空");
+        }
+        // 只抽取统计字段形成安全摘要，不保存orderList完整业务数据。
+        return "success=%s，hasDealOrder=%s，orderCount=%s，queryDate=%s".formatted(
+                response.getSuccess(), response.getHasDealOrder(), response.getOrderCount(), response.getQueryDate());
+    }
+
+    /**
+     * 处理Tool执行过程中的非预期系统异常。
+     *
+     * <p>该方法会尝试把RUNNING审计记录更新为FAILED。
+     * 如果审计失败更新本身也发生异常，则通过Throwable.addSuppressed()
+     * 把审计异常附加到最初异常上，但不改变最初异常作为主要失败原因。</p>
+     *
+     * <p>addSuppressed()从JDK 7开始提供，
+     * 常用于一个主异常发生后，清理、关闭或者补偿动作再次失败的场景。</p>
+     *
+     * @param auditDTO 当前Tool审计执行凭证
+     * @param originalException 最初导致Tool失败的系统异常
+     */
+    private void markUnexpectedExecutionFailed(ToolExecutionAuditDTO auditDTO, RuntimeException originalException) {
+        try {
+            // 非预期异常对外只保存统一安全提示，禁止把SQL、堆栈或内部连接信息写入审计表。
+            toolExecutionAuditApplicationService.markFailed(auditDTO, AgentErrorCodeEnum.AGENT_EXECUTION_ERROR.getCode(),
+                    AgentErrorCodeEnum.AGENT_EXECUTION_ERROR.getMessage());
+        } catch (RuntimeException auditException) {
+            // 保留原始异常作为主要原因，把审计更新异常作为附加异常。后续日志或异常分析仍能同时看到两条失败链路。
+            originalException.addSuppressed(auditException);
+            log.error("司机订单Tool失败审计更新异常，toolExecutionId={}，requestId={}",auditDTO.getToolExecutionId(), auditDTO.getRequestId(), auditException);
         }
     }
 
@@ -201,7 +325,6 @@ public class DriverOrderQueryTool {
         if (StringUtils.isBlank(queryDate)) {
             return LocalDate.now(BUSINESS_ZONE_ID);
         }
-
         return LocalDate.parse(queryDate, DateTimeFormatter.ISO_LOCAL_DATE);
     }
 
