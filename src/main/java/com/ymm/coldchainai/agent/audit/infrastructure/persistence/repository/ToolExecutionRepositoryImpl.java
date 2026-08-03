@@ -7,10 +7,12 @@ import com.ymm.coldchainai.agent.audit.domain.repository.IToolExecutionRepositor
 import com.ymm.coldchainai.agent.audit.infrastructure.persistence.dataobject.ToolExecutionDO;
 import com.ymm.coldchainai.agent.audit.infrastructure.persistence.mapper.IToolExecutionMapper;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -115,6 +117,85 @@ public class ToolExecutionRepositoryImpl implements IToolExecutionRepository {
 
         // 严格校验影响行数，避免失败审计没有真正落库却继续运行。
         validateAffectedRows("更新Tool审计状态为FAILED", toolExecution.getToolExecutionId(), affectedRows);
+    }
+
+    /**
+     * 根据requestId和数据所有者查询Tool执行审计列表。
+     *
+     * <p>Repository同时校验用户、租户和requestId，防止错误内部调用绕过Application层的数据权限约束。</p>
+     *
+     * @param requestId Agent请求唯一标识
+     * @param currentUserId 当前受信任用户ID
+     * @param currentTenantId 当前受信任租户ID
+     * @return 按审计记录插入顺序排列的Tool执行领域对象
+     */
+    @Override
+    public List<ToolExecution> listByRequestIdAndOwner(String requestId, Long currentUserId, Long currentTenantId) {
+
+        if (StringUtils.isBlank(requestId)) {
+            throw new IllegalArgumentException("查询Tool审计时requestId不能为空");
+        }
+
+        if (Objects.isNull(currentUserId) || currentUserId <= 0L) {
+            throw new IllegalArgumentException("查询Tool审计时当前用户ID必须大于0");
+        }
+
+        if (Objects.isNull(currentTenantId) || currentTenantId <= 0L) {
+            throw new IllegalArgumentException("查询Tool审计时当前租户ID必须大于0");
+        }
+
+        // Mapper异常返回null时按空列表处理，避免Repository直接对null执行Stream操作。
+        List<ToolExecutionDO> toolExecutionDOList = ListUtils.emptyIfNull(
+                toolExecutionMapper.selectByRequestIdAndOwner(StringUtils.trim(requestId), currentUserId, currentTenantId));
+
+        /*
+         * 在一次Stream遍历中完成DO元素判空和领域对象恢复。
+         * Stream.toList()是JDK 16新增API，返回不可修改List；
+         * 审计查询结果不应被Application层随意增删，因此这里使用不可修改结果更安全。
+         */
+        return toolExecutionDOList.stream()
+                .map(toolExecutionDO -> {
+                    // 查询结果包含空DO说明Mapper或框架转换异常，不能通过filter静默丢弃。
+                    if (Objects.isNull(toolExecutionDO)) {
+                        throw new IllegalStateException("Tool执行审计查询结果不能包含空DO");
+                    }
+                    // 将数据库状态码和字段组合恢复为经过领域规则校验的ToolExecution。
+                    return convertToDomain(toolExecutionDO);
+                })
+                .toList();
+    }
+
+    /**
+     * 将MyBatis查询结果恢复成Tool执行审计领域对象。
+     *
+     * <p>恢复时会把executionStatus整数编码转换成领域枚举，并校验RUNNING、SUCCEEDED和FAILED对应字段组合是否一致。</p>
+     *
+     * @param toolExecutionDO Tool执行审计数据库对象
+     * @return 恢复完成的Tool执行领域对象
+     */
+    private ToolExecution convertToDomain(ToolExecutionDO toolExecutionDO) {
+        if (Objects.isNull(toolExecutionDO)) {
+            throw new IllegalStateException("Tool执行审计DO不能为空");
+        }
+        // 数据库状态码必须转换为领域枚举，未知状态码会由fromCode()明确阻断。
+        ToolExecutionStatusEnum executionStatus = ToolExecutionStatusEnum.fromCode(toolExecutionDO.getExecutionStatus());
+
+        return ToolExecution.restore(
+                toolExecutionDO.getId(),
+                toolExecutionDO.getToolExecutionId(),
+                toolExecutionDO.getRequestId(),
+                toolExecutionDO.getAgentCode(),
+                toolExecutionDO.getToolName(),
+                toolExecutionDO.getCurrentUserId(),
+                toolExecutionDO.getCurrentTenantId(),
+                toolExecutionDO.getInputSummary(),
+                toolExecutionDO.getOutputSummary(),
+                executionStatus,
+                toolExecutionDO.getErrorCode(),
+                toolExecutionDO.getErrorMessage(),
+                toolExecutionDO.getStartTime(),
+                toolExecutionDO.getFinishTime(),
+                toolExecutionDO.getCostMillis());
     }
 
     /**

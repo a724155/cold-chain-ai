@@ -3,6 +3,47 @@
 
 <mapper namespace="com.ymm.coldchainai.agent.audit.infrastructure.persistence.mapper.IToolExecutionMapper">
 
+    <!-- Tool执行审计查询结果映射。 -->
+    <resultMap id="ToolExecutionResultMap" type="com.ymm.coldchainai.agent.audit.infrastructure.persistence.dataobject.ToolExecutionDO">
+
+        <id property="id" column="id"/>
+
+        <result property="toolExecutionId" column="tool_execution_id"/>
+        <result property="requestId" column="request_id"/>
+        <result property="agentCode" column="agent_code"/>
+        <result property="toolName" column="tool_name"/>
+        <result property="currentUserId" column="current_user_id"/>
+        <result property="currentTenantId" column="current_tenant_id"/>
+        <result property="inputSummary" column="input_summary"/>
+        <result property="outputSummary" column="output_summary"/>
+        <result property="executionStatus" column="execution_status"/>
+        <result property="errorCode" column="error_code"/>
+        <result property="errorMessage" column="error_message"/>
+        <result property="startTime" column="start_time"/>
+        <result property="finishTime" column="finish_time"/>
+        <result property="costMillis" column="cost_millis"/>
+
+    </resultMap>
+
+    <!-- Tool执行审计查询统一字段列表。 -->
+    <sql id="BaseColumnList">
+        id,
+        tool_execution_id,
+        request_id,
+        agent_code,
+        tool_name,
+        current_user_id,
+        current_tenant_id,
+        input_summary,
+        output_summary,
+        execution_status,
+        error_code,
+        error_message,
+        start_time,
+        finish_time,
+        cost_millis
+    </sql>
+
     <!--
         插入一条RUNNING状态的Tool执行审计记录。
 
@@ -105,5 +146,27 @@
         AND execution_status = #{expectedStatus}
 
     </update>
+
+    <!--
+        根据requestId查询当前用户和租户拥有的Tool审计记录。
+        这里同时使用：
+        request_id
+        current_user_id
+        current_tenant_id
+        即使调用者猜到其他用户的requestId，也无法读取对应Tool调用记录。
+        查询只读取审计数据，不执行状态修改，因此不使用FOR UPDATE。
+        ORDER BY id ASC表示按照RUNNING审计记录实际插入顺序返回，便于观察本轮Agent先后调用了哪些Tool。
+    -->
+    <select id="selectByRequestIdAndOwner" resultMap="ToolExecutionResultMap">
+
+        SELECT
+        <include refid="BaseColumnList"/>
+        FROM cold_chain_ai_tool_execution
+        WHERE request_id = #{requestId}
+        AND current_user_id = #{currentUserId}
+        AND current_tenant_id = #{currentTenantId}
+        ORDER BY id ASC
+
+    </select>
 
 </mapper>

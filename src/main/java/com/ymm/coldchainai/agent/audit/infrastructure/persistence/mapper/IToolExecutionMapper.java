@@ -1,6 +1,9 @@
 package com.ymm.coldchainai.agent.audit.infrastructure.persistence.mapper;
 
 import com.ymm.coldchainai.agent.audit.infrastructure.persistence.dataobject.ToolExecutionDO;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 /**
  * Agent Tool执行审计MyBatis Mapper。
@@ -36,4 +39,16 @@ public interface IToolExecutionMapper {
      * @return 实际更新记录数，正常情况下必须为1
      */
     int updateToFailed(ToolExecutionDO toolExecutionDO);
+
+    /**
+     * 根据Agent requestId和用户租户所有权查询Tool执行记录。
+     *
+     * @param requestId Agent请求唯一标识
+     * @param currentUserId 当前受信任用户ID
+     * @param currentTenantId 当前受信任租户ID
+     * @return 按数据库主键升序排列的Tool执行DO列表
+     */
+    List<ToolExecutionDO> selectByRequestIdAndOwner(@Param("requestId") String requestId,
+                                                    @Param("currentUserId") Long currentUserId,
+                                                    @Param("currentTenantId") Long currentTenantId);
 }

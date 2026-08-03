@@ -2,6 +2,8 @@ package com.ymm.coldchainai.agent.audit.domain.repository;
 
 import com.ymm.coldchainai.agent.audit.domain.model.ToolExecution;
 
+import java.util.List;
+
 /**
  * Agent Tool执行审计Repository领域端口。
  *
@@ -32,4 +34,18 @@ public interface IToolExecutionRepository {
      * @param toolExecution 已进入FAILED状态的Tool审计领域对象
      */
     void updateToFailed(ToolExecution toolExecution);
+
+    /**
+     * 根据Agent requestId和数据所有者查询Tool执行审计列表。
+     *
+     * <p>查询必须同时携带currentUserId和currentTenantId，禁止仅凭requestId读取其他用户或者其他租户的Tool调用记录。</p>
+     *
+     * <p>一个Agent请求可能没有调用Tool，此时返回空列表。</p>
+     *
+     * @param requestId Agent请求唯一标识
+     * @param currentUserId 当前受信任用户ID
+     * @param currentTenantId 当前受信任租户ID
+     * @return 按数据库记录顺序排列的Tool审计列表
+     */
+    List<ToolExecution> listByRequestIdAndOwner(String requestId, Long currentUserId, Long currentTenantId);
 }

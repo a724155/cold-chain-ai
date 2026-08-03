@@ -301,6 +301,123 @@ public class ToolExecution {
     }
 
     /**
+     * 根据数据库查询结果恢复完整Tool执行审计领域对象。
+     *
+     * <p>该方法用于审计查询链路，可以恢复RUNNING、SUCCEEDED和FAILED三种状态。
+     * 与restoreRunning()不同，这里不会继续推进状态，只负责还原数据库中的可信审计事实。</p>
+     *
+     * <p>恢复过程中会校验不同状态对应的字段组合：</p>
+     *
+     * <p>1. RUNNING不能存在完成时间、耗时、成功摘要或者错误信息；</p>
+     * <p>2. SUCCEEDED必须存在完成时间、耗时和输出摘要，不能存在失败信息；</p>
+     * <p>3. FAILED必须存在完成时间、耗时、错误码和错误信息，不能存在成功摘要。</p>
+     *
+     * <p>在挖矿流程中，该方法相当于把数据库中的外协设备作业档案，
+     * 重新恢复成研发人员能够理解的完整设备任务单。</p>
+     *
+     * @param id 数据库内部主键
+     * @param toolExecutionId Tool执行业务唯一标识
+     * @param requestId 所属Agent请求标识
+     * @param agentCode 发起调用的Agent编码
+     * @param toolName Tool稳定名称
+     * @param currentUserId 当前用户ID
+     * @param currentTenantId 当前租户ID
+     * @param inputSummary Tool输入安全摘要
+     * @param outputSummary Tool输出安全摘要
+     * @param executionStatus Tool执行状态
+     * @param errorCode Tool失败错误码
+     * @param errorMessage Tool失败安全错误信息
+     * @param startTime Tool开始时间
+     * @param finishTime Tool完成时间
+     * @param costMillis Tool执行耗时
+     * @return 已完成状态一致性校验的Tool执行领域对象
+     */
+    public static ToolExecution restore(
+            Long id,
+            String toolExecutionId,
+            String requestId,
+            String agentCode,
+            String toolName,
+            Long currentUserId,
+            Long currentTenantId,
+            String inputSummary,
+            String outputSummary,
+            ToolExecutionStatusEnum executionStatus,
+            Integer errorCode,
+            String errorMessage,
+            LocalDateTime startTime,
+            LocalDateTime finishTime,
+            Long costMillis) {
+
+        if (Objects.isNull(id) || id <= 0L) {
+            throw new IllegalArgumentException("Tool执行数据库主键必须大于0");
+        }
+
+        if (StringUtils.isBlank(toolExecutionId)) {
+            throw new IllegalArgumentException("Tool执行标识不能为空");
+        }
+
+        if (StringUtils.isBlank(requestId)) {
+            throw new IllegalArgumentException("Agent请求标识不能为空");
+        }
+
+        if (StringUtils.isBlank(agentCode)) {
+            throw new IllegalArgumentException("Agent编码不能为空");
+        }
+
+        if (StringUtils.isBlank(toolName)) {
+            throw new IllegalArgumentException("Tool名称不能为空");
+        }
+
+        if (Objects.isNull(currentUserId) || currentUserId <= 0L) {
+            throw new IllegalArgumentException("当前用户ID必须大于0");
+        }
+
+        if (Objects.isNull(currentTenantId) || currentTenantId <= 0L) {
+            throw new IllegalArgumentException("当前租户ID必须大于0");
+        }
+
+        if (StringUtils.isBlank(inputSummary)) {
+            throw new IllegalArgumentException("Tool输入摘要不能为空");
+        }
+
+        if (Objects.isNull(executionStatus)) {
+            throw new IllegalArgumentException("Tool执行状态不能为空");
+        }
+
+        if (Objects.isNull(startTime)) {
+            throw new IllegalArgumentException("Tool开始时间不能为空");
+        }
+
+        if (Objects.nonNull(costMillis) && costMillis < 0L) {
+            throw new IllegalArgumentException("Tool执行耗时不能小于0");
+        }
+
+        // 使用数据库原始字段恢复领域对象，不重新生成时间，也不重新计算执行耗时。
+        ToolExecution toolExecution = new ToolExecution(
+                id,
+                StringUtils.trim(toolExecutionId),
+                StringUtils.trim(requestId),
+                StringUtils.trim(agentCode),
+                StringUtils.trim(toolName),
+                currentUserId,
+                currentTenantId,
+                inputSummary,
+                outputSummary,
+                executionStatus,
+                errorCode,
+                errorMessage,
+                startTime,
+                finishTime,
+                costMillis);
+
+        // 根据当前执行状态校验输出摘要、错误信息、完成时间和耗时是否互相一致。
+        toolExecution.validateRestoredState();
+
+        return toolExecution;
+    }
+
+    /**
      * 将Tool执行状态推进为SUCCEEDED。
      *
      * <p>只有RUNNING状态允许成功完成。
@@ -358,6 +475,49 @@ public class ToolExecution {
 
         // 所有失败字段准备完成后，最后推进领域状态。
         this.executionStatus = ToolExecutionStatusEnum.FAILED;
+    }
+
+    /**
+     * 校验数据库恢复对象的状态与终态字段是否一致。
+     *
+     * <p>该方法使用JDK 14正式提供的增强switch箭头语法。
+     * 与JDK 8传统case相比，箭头分支不会发生忘写break导致的分支穿透，更适合枚举状态分类校验。</p>
+     */
+    private void validateRestoredState() {
+        /*
+         * JDK 14增强switch语法：case RUNNING -> {...}
+         * 每个箭头分支执行完成后自动结束，不需要手写break。
+         */
+        switch (executionStatus) {
+            case RUNNING -> {
+                // RUNNING表示Tool尚未结束，因此不能提前存在终态字段。
+                if (Objects.nonNull(finishTime) || Objects.nonNull(costMillis) || StringUtils.isNotBlank(outputSummary) ||
+                        Objects.nonNull(errorCode) || StringUtils.isNotBlank(errorMessage)) {
+                    throw new IllegalStateException("RUNNING Tool执行记录不能包含终态字段，toolExecutionId=%s".formatted(toolExecutionId));
+                }
+            }
+            case SUCCEEDED -> {
+                // SUCCEEDED必须完整记录成功摘要、完成时间和耗时。
+                if (Objects.isNull(finishTime) || Objects.isNull(costMillis) || StringUtils.isBlank(outputSummary)) {
+                    throw new IllegalStateException("SUCCEEDED Tool执行记录缺少成功终态字段，toolExecutionId=%s".formatted(toolExecutionId));
+                }
+                // 成功记录不能同时残留失败错误码或者错误信息。
+                if (Objects.nonNull(errorCode) || StringUtils.isNotBlank(errorMessage)) {
+                    throw new IllegalStateException("SUCCEEDED Tool执行记录不能包含失败信息，toolExecutionId=%s".formatted(toolExecutionId));
+                }
+            }
+            case FAILED -> {
+                // FAILED必须完整记录完成时间、耗时、错误码和安全错误信息。
+                if (Objects.isNull(finishTime) || Objects.isNull(costMillis) || Objects.isNull(errorCode) ||
+                        errorCode <= 0 || StringUtils.isBlank(errorMessage)) {
+                    throw new IllegalStateException("FAILED Tool执行记录缺少失败终态字段，toolExecutionId=%s".formatted(toolExecutionId));
+                }
+                // 失败记录不能同时保留成功输出摘要，避免一条记录表达互相冲突的状态。
+                if (StringUtils.isNotBlank(outputSummary)) {
+                    throw new IllegalStateException("FAILED Tool执行记录不能包含成功输出摘要，toolExecutionId=%s".formatted(toolExecutionId));
+                }
+            }
+        }
     }
 
     /**
